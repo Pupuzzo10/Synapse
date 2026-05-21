@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Synapse — Bot Discord personalizzati, hosting e loghi su misura. Listino ufficiale e supporto professionale." />
+  <title>Synapse — Bot Discord, Hosting &amp; Loghi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo logo--with-cat" href="#top" aria-label="Synapse — torna all’inizio">
+        <img
+          class="brand-cat"
+          src="brand-cat.png"
+          alt=""
+          width="56"
+          height="56"
+          decoding="async"
+        />
+        <span class="logo-wordmark">Synapse</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span class="sr-only">Apri menu</span>
+        <span></span><span></span><span></span>
+      </button>
+      <nav id="site-nav" class="nav">
+        <button type="button" class="nav-report-btn" id="open-report" title="Invia una segnalazione">Invia una segnalazione</button>
+        <button type="button" class="nav-chat-btn" id="open-my-chat" hidden title="Apri la chat con il supporto">💬 Chat</button>
+        <a href="#chi-siamo">Chi siamo</a>
+        <a href="#bot">Bot</a>
+        <a href="#hosting">Hosting</a>
+        <a href="#codice">Codice</a>
+        <a href="#loghi">Loghi</a>
+        <span class="nav-auth-wrap">
+          <button type="button" class="nav-auth-open" id="open-auth-modal">Accedi</button>
+          <span class="nav-user" id="nav-user-wrap" hidden>
+            <span class="nav-user-label" id="nav-user-label"></span>
+            <button type="button" class="nav-admin-open" id="open-admin" hidden>Admin</button>
+            <button type="button" class="nav-auth-logout" id="auth-logout">Esci</button>
+          </span>
+        </span>
+        <a class="nav-cta" href="https://discord.gg/FU9WuQcqeB" target="_blank" rel="noopener noreferrer">Discord</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <p id="auth-feedback" class="auth-banner auth-banner-global" aria-live="polite" hidden></p>
+  </div>
+
+  <div class="container status-bar-wrap">
+    <div class="status-bar" role="status" aria-live="polite">
+      <span class="status-dot" id="status-dot" data-state="ok"></span>
+      <span class="status-label" id="status-label">Caricamento stato…</span>
+      <span class="status-detail" id="status-detail"></span>
+    </div>
+  </div>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container hero-inner">
+        <p class="eyebrow" id="hero-eyebrow"></p>
+        <h1 id="hero-title"></h1>
+        <p class="lead" id="hero-lead"></p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" id="hero-cta-primary" href="#" target="_blank" rel="noopener noreferrer"></a>
+          <a class="btn btn-ghost" id="hero-cta-secondary" href="#bot"></a>
+        </div>
+      </div>
+    </section>
+
+    <section id="chi-siamo" class="section">
+      <div class="container narrow">
+        <h2 id="about-title"></h2>
+        <p class="section-intro" id="about-intro"></p>
+        <ul class="feature-list" id="about-features"></ul>
+        <p class="muted" id="about-footer"></p>
+      </div>
+    </section>
+
+    <section id="bot" class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="bot-title"></h2>
+          <p class="section-intro" id="bot-intro"></p>
+        </div>
+
+        <div class="cards cards-bot" id="bot-cards"></div>
+
+        <div class="subsection">
+          <h3 id="emoji-title"></h3>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr><th>Quantità</th><th>Prezzo</th></tr>
+              </thead>
+              <tbody id="emoji-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="hosting" class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="hosting-title"></h2>
+        </div>
+
+        <div class="callout callout-hosting">
+          <h3 id="hosting-callout-title"></h3>
+          <ul class="checklist flat" id="hosting-callout-list"></ul>
+        </div>
+
+        <h3 class="subsection-title" id="hosting-tariffs-title"></h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Durata</th><th>Prezzo</th><th>Note</th></tr>
+            </thead>
+            <tbody id="hosting-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="codice" class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="code-title"></h2>
+        </div>
+        <div class="cards cards-two" id="code-cards"></div>
+        <p class="legal-note" id="code-legal"></p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container narrow">
+        <h2 id="notes-title"></h2>
+        <p id="notes-body"></p>
+      </div>
+    </section>
+
+    <section id="loghi" class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="logos-title"></h2>
+          <p class="section-intro" id="logos-intro"></p>
+        </div>
+
+        <div class="cards cards-logos" id="logos-cards"></div>
+
+        <div class="callout callout-promo">
+          <h3 id="promo-title"></h3>
+          <p id="promo-body"></p>
+          <p class="muted small" id="promo-footer"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="ordine" class="section cta-section">
+      <div class="container cta-inner">
+        <h2>Come ordinare</h2>
+        <p class="lead">Apri un ticket nel canale <strong>📨・ticket</strong> su Discord per iniziare il tuo progetto.</p>
+        <a class="btn btn-primary btn-lg" href="https://discord.gg/FU9WuQcqeB" target="_blank" rel="noopener noreferrer">Vai a Synapse Discord</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p><strong>Synapse</strong> — Bot, hosting &amp; loghi</p>
+      <p class="footer-links">
+        <a href="https://discord.gg/FU9WuQcqeB" target="_blank" rel="noopener noreferrer">Discord</a>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <button type="button" class="footer-reg-btn" id="open-regolamento">Regolamento</button>
+      </p>
+      <p class="footer-copyright">© 2026 Synapse. Tutti i diritti riservati.</p>
+    </div>
+  </footer>
+
+  <div
+    id="auth-modal"
+    class="modal auth-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="auth-modal-title"
+    hidden
+  >
+    <div class="modal-dialog auth-dialog">
+      <header class="modal-header">
+        <h2 id="auth-modal-title" class="modal-title">Account Synapse</h2>
+        <button type="button" class="modal-close auth-modal-close" aria-label="Chiudi">&times;</button>
+      </header>
+      <div class="auth-tabs" role="tablist">
+        <button type="button" class="auth-tab is-active" data-auth-tab="login" role="tab" aria-selected="true">Accedi</button>
+        <button type="button" class="auth-tab" data-auth-tab="register" role="tab" aria-selected="false">Registrati</button>
+      </div>
+      <div class="auth-panels">
+        <div id="auth-panel-login" class="auth-panel" role="tabpanel">
+          <p class="auth-intro">Hai già un account? Inserisci email e password.</p>
+          <form id="form-login" class="auth-form" novalidate>
+            <label class="auth-field">
+              <span class="auth-label">Email</span>
+              <input type="email" name="email" required autocomplete="email" />
+            </label>
+            <label class="auth-field">
+              <span class="auth-label">Password</span>
+              <input type="password" name="password" required autocomplete="current-password" />
+            </label>
+            <p id="auth-message-login" class="auth-message" aria-live="polite" hidden></p>
+            <button type="submit" class="btn btn-primary auth-submit">Accedi</button>
+          </form>
+        </div>
+        <div id="auth-panel-register" class="auth-panel" role="tabpanel" hidden>
+          <p class="auth-intro">Crea un account con email, nome utente e password. Ti invieremo un link di conferma prima del primo accesso.</p>
+          <form id="form-register" class="auth-form" novalidate>
+            <label class="auth-field">
+              <span class="auth-label">Nome utente</span>
+              <input type="text" name="username" required minlength="2" maxlength="40" autocomplete="username" />
+            </label>
+            <label class="auth-field">
+              <span class="auth-label">Email</span>
+              <input type="email" name="email" required autocomplete="email" />
+            </label>
+            <label class="auth-field">
+              <span class="auth-label">Password</span>
+              <input type="password" name="password" required maxlength="72" autocomplete="new-password" />
+            </label>
+            <label class="auth-field">
+              <span class="auth-label">Conferma password</span>
+              <input type="password" name="passwordConfirm" required autocomplete="new-password" />
+            </label>
+            <label class="auth-check">
+              <input type="checkbox" name="marketingOptIn" value="1" />
+              <span>
+                Acconsento a ricevere email da SynapseBot Hub con <strong>promozioni, novità e comunicazioni di marketing</strong> all’indirizzo indicato.
+                Potrai revocare il consenso in qualsiasi momento (es. rispondendo alle email o tramite supporto).
+              </span>
+            </label>
+            <p id="auth-message-register" class="auth-message" aria-live="polite" hidden></p>
+            <button type="submit" class="btn btn-primary auth-submit">Crea account</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="regolamento-modal"
+    class="modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="regolamento-title"
+    hidden
+  >
+    <div class="modal-dialog">
+      <header class="modal-header">
+        <h2 id="regolamento-title" class="modal-title">📘 Regolamento ufficiale – SynapseBot Hub</h2>
+        <button type="button" class="modal-close" aria-label="Chiudi">&times;</button>
+      </header>
+      <div class="modal-body">
+        <section class="reg-block">
+          <h3>1. Finalità del documento</h3>
+          <p>
+            Il presente regolamento definisce le norme che disciplinano l’utilizzo dei servizi offerti da SynapseBot Hub, con particolare riferimento alla richiesta, sviluppo, consegna e gestione di bot personalizzati per Discord.
+            L’obiettivo è garantire trasparenza, correttezza e tutela reciproca tra staff e clienti.
+          </p>
+        </section>
+
+        <section class="reg-block">
+          <h3>2. Comportamento degli utenti</h3>
+          <p>Gli utenti devono mantenere un comportamento rispettoso e professionale verso lo staff e gli altri membri. Sono vietati:</p>
+          <ul>
+            <li>linguaggi offensivi</li>
+            <li>spam o flood</li>
+            <li>provocazioni o comportamenti tossici</li>
+            <li>contenuti discriminatori</li>
+            <li>pubblicità non autorizzata</li>
+          </ul>
+          <p>Le violazioni comportano sanzioni fino alla sospensione o revoca del servizio.</p>
+        </section>
+
+        <section class="reg-block">
+          <h3>3. Richiesta dei servizi</h3>
+          <ul>
+            <li>Le richieste devono essere effettuate esclusivamente tramite ticket o DM.</li>
+            <li>Ogni richiesta deve essere chiara, dettagliata e completa.</li>
+            <li>Lo staff può rifiutare richieste non conformi o tecnicamente irrealizzabili.</li>
+            <li>Il cliente deve specificare numero di comandi, funzioni richieste, eventuali extra e preferenze tecniche.</li>
+          </ul>
+        </section>
+
+        <section class="reg-block">
+          <h3>4. Pagamenti</h3>
+          <ul>
+            <li>Lo sviluppo del bot inizia solo dopo la conferma del pagamento.</li>
+            <li>I metodi di pagamento vengono comunicati privatamente.</li>
+            <li>I prezzi sono indicati nel listino ufficiale.</li>
+            <li>La fattura può essere richiesta prima o dopo il pagamento.</li>
+          </ul>
+          <h4>Comandi non utilizzati</h4>
+          <p>
+            Se un pacchetto include un numero definito di comandi (es. 10), ma il cliente ne utilizza inizialmente solo una parte (es. 6), i comandi rimanenti possono essere richiesti entro <strong>90 giorni</strong> senza costi aggiuntivi.
+            Non è possibile modificare o sostituire comandi già consegnati.
+          </p>
+          <h4>Riattivazione del bot</h4>
+          <p>
+            Se il cliente decide di non rinnovare l’hosting o il servizio, il bot verrà disattivato. Per riattivarlo è previsto un costo di <strong>3,99€</strong>.
+          </p>
+        </section>
+
+        <section class="reg-block">
+          <h3>5. Politica sui rimborsi</h3>
+          <ul>
+            <li>Non sono previsti rimborsi dopo l’avvio o completamento dello sviluppo.</li>
+            <li>In caso di problemi tecnici, viene fornita assistenza entro i limiti del servizio acquistato.</li>
+            <li>Non sono previsti rimborsi per errori dovuti a richieste incomplete o modifiche successive.</li>
+          </ul>
+        </section>
+
+        <section class="reg-block">
+          <h3>6. Modifiche e aggiornamenti</h3>
+          <p><strong>Inclusi gratuitamente</strong> (entro 14 giorni): piccole ottimizzazioni; correzioni di bug minori.</p>
+          <p><strong>Non inclusi gratuitamente:</strong> sostituzione di comandi; aggiunta di nuove funzionalità; modifiche strutturali; richieste non presenti nel progetto iniziale. Qualsiasi modifica extra comporta un costo aggiuntivo.</p>
+        </section>
+
+        <section class="reg-block">
+          <h3>7. Hosting</h3>
+          <ul>
+            <li>L’hosting non è incluso gratuitamente (tranne dove specificato nei pacchetti).</li>
+            <li>È disponibile un servizio di hosting a pagamento secondo il listino aggiornato.</li>
+            <li>In assenza di hosting SynapseBot Hub, il cliente è responsabile della gestione autonoma.</li>
+            <li>Al termine del periodo acquistato, lo staff può disattivare il bot senza preavviso.</li>
+          </ul>
+        </section>
+
+        <section class="reg-block">
+          <h3>8. Proprietà del codice e licenza d’uso</h3>
+          <p>Il bot consegnato è di proprietà del cliente, ma non include il codice sorgente. Il codice può essere fornito solo acquistando uno dei due livelli:</p>
+          <h4>Accesso parziale – 14,99€</h4>
+          <ul>
+            <li>Visione di funzioni specifiche</li>
+            <li>Porzioni di codice su richiesta</li>
+            <li>Nessun file completo</li>
+          </ul>
+          <h4>Accesso completo – 34,99€</h4>
+          <ul>
+            <li>Codice sorgente completo</li>
+            <li>Tutti i file <code>.py</code></li>
+            <li>Struttura del progetto</li>
+            <li>Cartelle <code>cogs/</code> e <code>utils/</code></li>
+            <li>Documentazione minima</li>
+          </ul>
+          <h4>Limitazioni</h4>
+          <ul>
+            <li>Il codice è ad uso personale.</li>
+            <li>È vietata la rivendita, duplicazione o distribuzione a terzi.</li>
+            <li>Il bot viene consegnato in formato eseguibile o hostato se non viene acquistato l’accesso al codice.</li>
+          </ul>
+        </section>
+
+        <section class="reg-block">
+          <h3>9. Supporto tecnico</h3>
+          <p>Il supporto tecnico è garantito per <strong>2 settimane</strong> dalla consegna.</p>
+          <p><strong>Estensioni disponibili:</strong></p>
+          <ul>
+            <li>Garanzia estesa 6 mesi → <strong>11€</strong></li>
+            <li>Supporto aggiuntivo 2 settimane → <strong>5€</strong></li>
+          </ul>
+          <p>Gli orari di supporto verranno comunicati dallo staff.</p>
+        </section>
+
+        <section class="reg-block">
+          <h3>10. Limitazioni e responsabilità</h3>
+          <ul>
+            <li>Non si garantisce compatibilità con futuri aggiornamenti Discord o API esterne.</li>
+            <li>Lo staff non è responsabile per malfunzionamenti causati da modifiche non autorizzate.</li>
+            <li>Non si garantisce uptime continuo in caso di problemi con servizi terzi.</li>
+            <li>Il cliente è responsabile dell’uso corretto del bot.</li>
+            <li>Il servizio non è soggetto a regime fiscale professionale (assenza di partita IVA).</li>
+          </ul>
+        </section>
+
+        <section class="reg-block">
+          <h3>11. Sanzioni e provvedimenti</h3>
+          <p>Lo staff può intervenire in qualsiasi momento per tutelare il servizio. Le sanzioni possono includere:</p>
+          <ul>
+            <li>avvertimenti</li>
+            <li>sospensione temporanea</li>
+            <li>revoca del servizio</li>
+            <li>ban permanente</li>
+          </ul>
+          <p>In caso di violazioni gravi, l’accesso al bot può essere revocato senza preavviso.</p>
+        </section>
+
+        <section class="reg-block">
+          <h3>12. Clausola di esclusione di responsabilità</h3>
+          <p>
+            Il servizio è fornito “così com’è”, senza garanzie implicite o esplicite. Lo staff non è responsabile per danni diretti o indiretti derivanti dall’uso del bot.
+            Il cliente accetta di sollevare SynapseBot Hub da qualsiasi responsabilità legale o economica.
+          </p>
+        </section>
+
+        <section class="reg-block">
+          <h3>13. Accettazione del regolamento</h3>
+          <p>
+            L’utilizzo dei servizi implica l’accettazione integrale del presente regolamento. Eventuali aggiornamenti saranno comunicati nei canali ufficiali.
+            L’acquisto dei servizi comporta consenso automatico alle presenti regole.
+          </p>
+        </section>
+
+        <p class="reg-footer">SynapseBot Hub – Servizi professionali per bot Discord</p>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="admin-modal"
+    class="modal admin-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="admin-modal-title"
+    hidden
+  >
+    <div class="modal-dialog admin-dialog">
+      <header class="modal-header">
+        <h2 id="admin-modal-title" class="modal-title">Pannello amministratore</h2>
+        <button type="button" class="modal-close admin-modal-close" aria-label="Chiudi">&times;</button>
+      </header>
+      <div class="admin-layout">
+        <nav id="admin-tabs" class="admin-tabs-nav"></nav>
+        <div class="admin-main">
+          <div id="admin-tab-body" class="admin-tab-body"></div>
+          <div class="admin-actions">
+            <button type="button" class="btn btn-primary" id="admin-save">Salva contenuti</button>
+            <p id="admin-feedback" class="admin-feedback" aria-live="polite" hidden></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="report-modal"
+    class="modal report-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="report-modal-title"
+    hidden
+  >
+    <div class="modal-dialog report-dialog">
+      <header class="modal-header">
+        <h2 id="report-modal-title" class="modal-title">Invia una segnalazione</h2>
+        <button type="button" class="modal-close report-modal-close" aria-label="Chiudi">&times;</button>
+      </header>
+      <div class="modal-body report-body">
+        <div id="staff-presence" class="staff-presence" data-online="false">
+          <span class="staff-dot"></span>
+          <span id="staff-presence-text">Verifica disponibilità staff…</span>
+        </div>
+        <div id="report-login-needed" class="report-login-needed" hidden>
+          <p>Per inviare una segnalazione devi prima <button type="button" class="link-btn" id="report-go-login">accedere</button>.</p>
+        </div>
+        <form id="form-report" class="auth-form" novalidate>
+          <label class="auth-field">
+            <span class="auth-label">Email di contatto</span>
+            <input type="email" name="email" id="report-email" required autocomplete="email" />
+          </label>
+          <label class="auth-field">
+            <span class="auth-label">Segnalazione (max 10.000 caratteri)</span>
+            <textarea name="message" id="report-message" rows="8" maxlength="10000" required></textarea>
+            <span class="auth-hint" id="report-counter">0 / 10000</span>
+          </label>
+          <p id="report-message-feedback" class="auth-message" aria-live="polite" hidden></p>
+          <button type="submit" class="btn btn-primary auth-submit" id="report-submit">Invia segnalazione</button>
+        </form>
+        <section class="report-list-section" id="report-mine-section" hidden>
+          <h3>Le tue segnalazioni</h3>
+          <ul id="report-mine-list" class="report-list"></ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="chat-widget" class="chat-widget" data-state="closed" hidden>
+    <header class="chat-header">
+      <span class="chat-title" id="chat-title">Supporto</span>
+      <span class="chat-status-pill" id="chat-status-pill">aperta</span>
+      <span class="chat-header-actions">
+        <button type="button" class="chat-btn" id="chat-min" title="Riduci a icona">&minus;</button>
+        <button type="button" class="chat-btn" id="chat-full" title="Schermo intero">&#9634;</button>
+        <button type="button" class="chat-btn" id="chat-close-widget" title="Chiudi finestra">&times;</button>
+      </span>
+    </header>
+    <div class="chat-body" id="chat-body">
+      <div class="chat-admin-controls" id="chat-admin-controls" hidden>
+        <label class="chat-control">
+          <span>Stato</span>
+          <select id="chat-status-select">
+            <option value="open">Aperta</option>
+            <option value="paused">In attesa</option>
+            <option value="suspended">Sospesa</option>
+            <option value="closed">Chiusa</option>
+          </select>
+        </label>
+        <label class="chat-control chat-control-inline" title="Decide l'admin: se attivo, l'utente può scrivere">
+          <input type="checkbox" id="chat-perm-send" />
+          <span>Permetti scrittura all'utente</span>
+        </label>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <form class="chat-form" id="chat-form">
+        <textarea id="chat-input" rows="2" maxlength="4000" placeholder="Scrivi un messaggio..."></textarea>
+        <button type="submit" class="btn btn-primary chat-send" id="chat-send">Invia</button>
+      </form>
+      <p class="chat-disabled-msg" id="chat-disabled-msg" hidden></p>
+    </div>
+  </div>
+
+  <script src="js/auth-client.js"></script>
+  <script src="js/content.js"></script>
+  <script src="js/support.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
