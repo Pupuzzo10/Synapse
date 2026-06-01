@@ -101,7 +101,7 @@
     p.textContent = message;
     var note = document.createElement("p");
     note.className = "blocked-page-note";
-    note.textContent = "Non puoi navigare, inviare segnalazioni, usare la chat o accedere alle API finché il provvedimento resta attivo.";
+    note.textContent = "Non puoi navigare, aprire ticket, usare la chat o accedere alle API finché il provvedimento resta attivo.";
     card.appendChild(icon); card.appendChild(kicker); card.appendChild(h); card.appendChild(p); card.appendChild(note);
     page.appendChild(card);
     document.body.appendChild(page);

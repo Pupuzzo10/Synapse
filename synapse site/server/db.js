@@ -109,6 +109,9 @@ function ensureDatabase(dbPath) {
       user_id INTEGER NOT NULL,
       email TEXT NOT NULL,
       message TEXT NOT NULL,
+      subject TEXT,
+      category TEXT,
+      product_name TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
       admin_reply TEXT,
       chat_id INTEGER,
@@ -181,10 +184,28 @@ function ensureDatabase(dbPath) {
     db.exec("ALTER TABLE users ADD COLUMN last_seen_at TEXT");
   }
 
-  // Migrazione leggera: traccia IP anche sui ticket se la colonna manca.
+  // Migrazione leggera: completa ip_bans sui DB creati prima del sistema moderazione avanzato.
+  const ipBanColumns = db.prepare("PRAGMA table_info(ip_bans)").all();
+  function hasIpBanColumn(name) { return ipBanColumns.some(function (c) { return c.name === name; }); }
+  if (!hasIpBanColumn("updated_at")) {
+    db.exec("ALTER TABLE ip_bans ADD COLUMN updated_at TEXT");
+    db.exec("UPDATE ip_bans SET updated_at = COALESCE(lifted_at, created_at, datetime('now')) WHERE updated_at IS NULL");
+  }
+
+  // Migrazione leggera: traccia IP e contesto prodotto anche sui ticket se le colonne mancano.
   const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();
-  if (!ticketColumns.some(function (c) { return c.name === "ip"; })) {
+  function hasTicketColumn(name) { return ticketColumns.some(function (c) { return c.name === name; }); }
+  if (!hasTicketColumn("ip")) {
     db.exec("ALTER TABLE tickets ADD COLUMN ip TEXT");
+  }
+  if (!hasTicketColumn("subject")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN subject TEXT");
+  }
+  if (!hasTicketColumn("category")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN category TEXT");
+  }
+  if (!hasTicketColumn("product_name")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN product_name TEXT");
   }
 
   const statements = {

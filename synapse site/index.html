@@ -31,7 +31,7 @@
         <span></span><span></span><span></span>
       </button>
       <nav id="site-nav" class="nav">
-        <button type="button" class="nav-report-btn" id="open-report" title="Invia una segnalazione">Invia una segnalazione</button>
+        <button type="button" class="nav-report-btn" id="open-report" title="Apri un ticket con lo staff">Apri ticket</button>
         <button type="button" class="nav-chat-btn" id="open-my-chat" hidden title="Apri la chat con il supporto">💬 Chat</button>
         <a href="#chi-siamo">Chi siamo</a>
         <a href="#bot">Bot</a>
@@ -119,7 +119,7 @@
           <div class="table-wrap">
             <table class="data-table">
               <thead>
-                <tr><th>Quantità</th><th>Prezzo</th></tr>
+                <tr><th>Quantità</th><th>Prezzo</th><th>Info</th></tr>
               </thead>
               <tbody id="emoji-tbody"></tbody>
             </table>
@@ -143,7 +143,7 @@
         <div class="table-wrap">
           <table class="data-table">
             <thead>
-              <tr><th>Durata</th><th>Prezzo</th><th>Note</th></tr>
+              <tr><th>Durata</th><th>Prezzo</th><th>Note</th><th>Info</th></tr>
             </thead>
             <tbody id="hosting-tbody"></tbody>
           </table>
@@ -199,7 +199,7 @@
           <div class="table-wrap">
             <table class="data-table">
               <thead>
-                <tr><th>Extra</th><th>Prezzo</th><th>Note</th></tr>
+                <tr><th>Extra</th><th>Prezzo</th><th>Note</th><th>Info</th></tr>
               </thead>
               <tbody id="websites-extras-tbody"></tbody>
             </table>
@@ -221,8 +221,8 @@
     <section id="ordine" class="section cta-section">
       <div class="container cta-inner">
         <h2>Come ordinare</h2>
-        <p class="lead">Apri un ticket nel canale <strong>📨・ticket</strong> su Discord per iniziare il tuo progetto.</p>
-        <a class="btn btn-primary btn-lg" href="https://discord.gg/FU9WuQcqeB" target="_blank" rel="noopener noreferrer">Vai a Synapse Discord</a>
+        <p class="lead">Apri un ticket direttamente dal prodotto che ti interessa: lo staff riceve la richiesta nel pannello admin e può seguirti in chat.</p>
+        <button type="button" class="btn btn-primary btn-lg" id="open-order-ticket">Apri ticket generale</button>
       </div>
     </section>
   </main>
@@ -234,6 +234,8 @@
         <a href="https://discord.gg/FU9WuQcqeB" target="_blank" rel="noopener noreferrer">Discord</a>
         <span class="footer-sep" aria-hidden="true">·</span>
         <button type="button" class="footer-reg-btn" id="open-regolamento">Regolamento</button>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <button type="button" class="footer-reg-btn" id="open-privacy">Privacy Policy</button>
       </p>
       <p class="footer-copyright">© 2026 Synapse. Tutti i diritti riservati.</p>
     </div>
@@ -425,7 +427,7 @@
 
         <section class="reg-block">
           <h3>9. Supporto tecnico</h3>
-          <p>Il supporto tecnico è garantito per <strong>2 settimane</strong> dalla consegna.</p>
+          <p>Il supporto tecnico tramite ticket è continuativo per i clienti che hanno acquistato un prodotto Synapse, nei limiti della richiesta iniziale e della disponibilità dello staff.</p>
           <p><strong>Estensioni disponibili:</strong></p>
           <ul>
             <li>Garanzia estesa 6 mesi → <strong>11€</strong></li>
@@ -478,6 +480,54 @@
     </div>
   </div>
 
+
+  <div
+    id="privacy-modal"
+    class="modal privacy-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="privacy-modal-title"
+    hidden
+  >
+    <div class="modal-dialog regolamento-dialog">
+      <header class="modal-header">
+        <h2 id="privacy-modal-title" class="modal-title">Privacy Policy &amp; condizioni Synapse</h2>
+        <button type="button" class="modal-close privacy-modal-close" aria-label="Chiudi">&times;</button>
+      </header>
+      <div class="modal-body regolamento-body">
+        <section class="reg-block">
+          <h3>1. Titolare e finalità</h3>
+          <p>Synapse raccoglie solo i dati necessari per gestire account, ticket, chat di supporto, ordini, sicurezza del sito e comunicazioni operative relative ai servizi richiesti.</p>
+        </section>
+        <section class="reg-block">
+          <h3>2. Dati trattati</h3>
+          <ul>
+            <li>Dati account: nome utente, email, password cifrata e preferenze di contatto.</li>
+            <li>Dati supporto: contenuto dei ticket, messaggi chat, prodotto richiesto e stato della conversazione.</li>
+            <li>Dati tecnici: sessione, IP, log essenziali, presenza live e informazioni antifrode/moderazione.</li>
+          </ul>
+        </section>
+        <section class="reg-block">
+          <h3>3. Uso dei dati</h3>
+          <p>I dati vengono usati per erogare i servizi Synapse, rispondere ai ticket, migliorare l’assistenza, prevenire abusi, proteggere utenti e staff e mantenere operativo il sito.</p>
+        </section>
+        <section class="reg-block">
+          <h3>4. Conservazione e sicurezza</h3>
+          <p>I dati sono conservati per il tempo necessario alla gestione del rapporto, della sicurezza e degli obblighi operativi. Le password non vengono salvate in chiaro. Gli accessi admin devono restare riservati allo staff autorizzato.</p>
+        </section>
+        <section class="reg-block">
+          <h3>5. Rimborsi e assistenza post-acquisto</h3>
+          <p>Per i prodotti personalizzati Synapse non è previsto rimborso dopo conferma, avvio o consegna del lavoro. In sostituzione, il cliente ha accesso ad assistenza tramite ticket e chat per correggere problemi e avvicinare il risultato alla richiesta concordata inizialmente.</p>
+        </section>
+        <section class="reg-block">
+          <h3>6. Diritti dell’utente</h3>
+          <p>L’utente può chiedere chiarimenti, correzione dei dati o cancellazione dell’account contattando lo staff tramite i canali ufficiali, salvo dati che devono essere conservati per sicurezza, gestione abusi o tutela del servizio.</p>
+        </section>
+        <p class="reg-footer">Synapse — Privacy, ticket e assistenza clienti</p>
+      </div>
+    </div>
+  </div>
+
   <div
     id="admin-modal"
     class="modal admin-modal"
@@ -514,7 +564,7 @@
   >
     <div class="modal-dialog report-dialog">
       <header class="modal-header">
-        <h2 id="report-modal-title" class="modal-title">Invia una segnalazione</h2>
+        <h2 id="report-modal-title" class="modal-title">Apri un ticket</h2>
         <button type="button" class="modal-close report-modal-close" aria-label="Chiudi">&times;</button>
       </header>
       <div class="modal-body report-body">
@@ -523,7 +573,7 @@
           <span id="staff-presence-text">Verifica disponibilità staff…</span>
         </div>
         <div id="report-login-needed" class="report-login-needed" hidden>
-          <p>Per inviare una segnalazione devi prima <button type="button" class="link-btn" id="report-go-login">accedere</button>.</p>
+          <p>Per aprire un ticket devi prima <button type="button" class="link-btn" id="report-go-login">accedere</button>.</p>
         </div>
         <form id="form-report" class="auth-form" novalidate>
           <label class="auth-field">
@@ -531,15 +581,15 @@
             <input type="email" name="email" id="report-email" required autocomplete="email" />
           </label>
           <label class="auth-field">
-            <span class="auth-label">Segnalazione (max 10.000 caratteri)</span>
+            <span class="auth-label">Richiesta / messaggio del ticket (max 10.000 caratteri)</span>
             <textarea name="message" id="report-message" rows="8" maxlength="10000" required></textarea>
             <span class="auth-hint" id="report-counter">0 / 10000</span>
           </label>
           <p id="report-message-feedback" class="auth-message" aria-live="polite" hidden></p>
-          <button type="submit" class="btn btn-primary auth-submit" id="report-submit">Invia segnalazione</button>
+          <button type="submit" class="btn btn-primary auth-submit" id="report-submit">Invia ticket</button>
         </form>
         <section class="report-list-section" id="report-mine-section" hidden>
-          <h3>Le tue segnalazioni</h3>
+          <h3>I tuoi ticket</h3>
           <ul id="report-mine-list" class="report-list"></ul>
         </section>
       </div>

@@ -250,6 +250,18 @@ function createApp(overrides = {}) {
     message: "Troppi tentativi di accesso. Riprova tra qualche minuto.",
   });
 
+  const ticketLimiter = buildRateLimiter({
+    windowMs: 10 * 60 * 1000,
+    limit: 8,
+    message: "Troppi ticket inviati. Riprova tra qualche minuto.",
+  });
+
+  const chatMessageLimiter = buildRateLimiter({
+    windowMs: 60 * 1000,
+    limit: 45,
+    message: "Stai inviando troppi messaggi. Attendi qualche secondo.",
+  });
+
   async function deliverVerificationEmail(user, verificationUrl) {
     logEmailEvent("attempt", {
       userId: user.id,
@@ -365,7 +377,7 @@ function createApp(overrides = {}) {
     }
   }
 
-  app.post("/api/auth/register", requireCsrf, async function (req, res, next) {
+  app.post("/api/auth/register", registerLimiter, requireCsrf, async function (req, res, next) {
     const parsed = parseRegisterInput(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -430,7 +442,7 @@ function createApp(overrides = {}) {
     }
   });
 
-  app.post("/api/auth/login", requireCsrf, async function (req, res, next) {
+  app.post("/api/auth/login", loginLimiter, requireCsrf, async function (req, res, next) {
     const parsed = parseLoginInput(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -596,6 +608,12 @@ function createApp(overrides = {}) {
     return authDb.db.prepare("SELECT id FROM users WHERE is_admin = 1").all().map(function (r) { return r.id; });
   }
 
+  function firstAdminId(preferredId) {
+    const ids = adminUserIds();
+    if (preferredId && ids.indexOf(preferredId) !== -1) return preferredId;
+    return ids.length ? ids[0] : null;
+  }
+
   app.get("/api/content", function (req, res) {
     res.json({ ok: true, content: adminOps.getContent(authDb) });
   });
@@ -627,14 +645,18 @@ function createApp(overrides = {}) {
   });
 
   // === SUPPORT TICKETS ===
-  app.post("/api/tickets", requireCsrf, requireAuth, function (req, res) {
+  app.post("/api/tickets", ticketLimiter, requireCsrf, requireAuth, function (req, res) {
     const email = (req.body && typeof req.body.email === "string" ? req.body.email.trim() : "").toLowerCase();
     const message = req.body && typeof req.body.message === "string" ? req.body.message.trim() : "";
+    const subject = req.body && typeof req.body.subject === "string" ? req.body.subject.trim().slice(0, 160) : "";
+    const category = req.body && typeof req.body.category === "string" ? req.body.category.trim().slice(0, 80) : "";
+    const productName = req.body && typeof req.body.productName === "string" ? req.body.productName.trim().slice(0, 160) : "";
+    const autoOpenChat = !!(req.body && req.body.autoOpenChat);
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ ok: false, message: "Email non valida." });
     }
     if (!message) {
-      return res.status(400).json({ ok: false, message: "Inserisci un messaggio." });
+      return res.status(400).json({ ok: false, message: "Descrivi la richiesta nel ticket." });
     }
     if (message.length > 10000) {
       return res.status(400).json({ ok: false, message: "Il messaggio supera i 10.000 caratteri." });
@@ -642,13 +664,32 @@ function createApp(overrides = {}) {
     if (support.countActiveTicketsByUser(req.currentUser.id) >= 1) {
       return res.status(429).json({
         ok: false,
-        message: "Hai già una richiesta di supporto aperta. Per evitare spam puoi aprirne una sola alla volta.",
+        message: "Hai già un ticket aperto. Puoi continuare dalla chat attiva oppure attendere la chiusura del ticket corrente.",
       });
     }
-    const ticket = support.createTicket({ userId: req.currentUser.id, email, message, ip: req.clientIp });
-    broadcaster.broadcast("ticket:new", ticket, { userIds: adminUserIds() });
-    broadcaster.broadcast("ticket:mine", ticket, { userIds: [req.currentUser.id] });
-    res.status(201).json({ ok: true, ticket });
+    const ticket = support.createTicket({
+      userId: req.currentUser.id,
+      email,
+      message,
+      subject: subject || (productName ? "Informazioni su " + productName : "Ticket supporto"),
+      category: category || null,
+      productName: productName || null,
+      ip: req.clientIp,
+    });
+    let chat = null;
+    if (autoOpenChat) {
+      const adminId = firstAdminId();
+      if (adminId) chat = support.openChatForTicket(ticket.id, adminId);
+    }
+    const finalTicket = chat ? support.getTicket(ticket.id) : ticket;
+    const audience = adminUserIds().concat([req.currentUser.id]);
+    broadcaster.broadcast("ticket:new", finalTicket, { userIds: adminUserIds() });
+    broadcaster.broadcast("ticket:mine", finalTicket, { userIds: [req.currentUser.id] });
+    if (chat) {
+      broadcaster.broadcast("ticket:update", finalTicket, { userIds: audience });
+      broadcaster.broadcast("chat:open", chat, { userIds: audience });
+    }
+    res.status(201).json({ ok: true, ticket: finalTicket, chat });
   });
 
   app.get("/api/tickets/mine", requireAuth, function (req, res) {
@@ -730,7 +771,7 @@ function createApp(overrides = {}) {
     res.json({ ok: true, chat, messages: support.listMessages(chat.id) });
   });
 
-  app.post("/api/chats/:id/messages", requireCsrf, requireAuth, function (req, res) {
+  app.post("/api/chats/:id/messages", chatMessageLimiter, requireCsrf, requireAuth, function (req, res) {
     const chat = loadChatOr403(req, res);
     if (!chat) return;
     if (chat.status === "closed") return res.status(400).json({ ok: false, message: "Chat chiusa." });
@@ -749,8 +790,28 @@ function createApp(overrides = {}) {
       senderRole,
       content,
     });
-    broadcaster.broadcast("chat:message", { chatId: chat.id, message: msg }, { userIds: adminUserIds().concat([chat.userId]) });
-    res.status(201).json({ ok: true, message: msg });
+    const updatedChat = support.getChat(chat.id);
+    const audience = adminUserIds().concat([chat.userId]);
+    broadcaster.broadcast("chat:message", { chatId: chat.id, message: msg }, { userIds: audience });
+    if (updatedChat) broadcaster.broadcast("chat:update", updatedChat, { userIds: audience });
+    res.status(201).json({ ok: true, message: msg, chat: updatedChat });
+  });
+
+  app.post("/api/chats/:id/typing", requireCsrf, requireAuth, function (req, res) {
+    const chat = loadChatOr403(req, res);
+    if (!chat) return;
+    if (chat.status === "closed" || chat.status === "suspended") return res.json({ ok: true, ignored: true });
+    const senderRole = req.currentUser.is_admin ? "admin" : "user";
+    const payload = {
+      chatId: chat.id,
+      userId: req.currentUser.id,
+      username: req.currentUser.username || req.currentUser.email || "Utente",
+      role: senderRole,
+      isTyping: !!(req.body && req.body.isTyping),
+      at: new Date().toISOString(),
+    };
+    broadcaster.broadcast("chat:typing", payload, { userIds: adminUserIds().concat([chat.userId]) });
+    res.json({ ok: true });
   });
 
   app.post("/api/chats/:id/status", requireCsrf, requireAdmin, function (req, res) {
@@ -862,6 +923,24 @@ function createApp(overrides = {}) {
     }
   });
 
+
+
+  app.post("/api/admin/moderation/unban-all", requireCsrf, requireAdmin, function (req, res) {
+    const now = authDb.nowIso();
+    const tx = authDb.db.transaction(function () {
+      const users = authDb.db.prepare("UPDATE users SET account_status = 'active', account_status_reason = NULL, account_status_updated_at = @now, account_status_updated_by = @admin, updated_at = @now WHERE COALESCE(account_status, 'active') <> 'active'").run({ now, admin: req.currentUser.id });
+      let ips = { changes: 0 };
+      try {
+        ips = authDb.db.prepare("UPDATE ip_bans SET active = 0, lifted_at = @now, lifted_by = @admin, updated_at = @now WHERE active = 1").run({ now, admin: req.currentUser.id });
+      } catch (_e) { /* tabella assente su DB molto vecchi */ }
+      return { users: users.changes || 0, ips: ips.changes || 0 };
+    });
+    const result = tx();
+    broadcaster.broadcast("users:update", { bulk: true, action: "unban-all", result }, { userIds: adminUserIds() });
+    broadcaster.broadcast("moderation:list-update", { bulk: true, action: "unban-all", result }, { userIds: adminUserIds() });
+    broadcastAdminPresence();
+    res.json({ ok: true, result });
+  });
 
   app.get("/api/admin/moderation/ip-bans", requireAdmin, function (req, res) {
     res.json({ ok: true, bans: authDb.listActiveIpBans ? authDb.listActiveIpBans() : [] });

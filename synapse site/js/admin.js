@@ -463,6 +463,23 @@
       .catch(function (err) { alert("Errore: " + err.message); });
   }
 
+  function moderationUnbanAll() {
+    if (!confirm("Sbloccare tutti gli account sospesi/bannati e tutti gli IP bannati attivi?")) return;
+    fetch(appBaseUrl + "/api/admin/moderation/unban-all", {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+      body: JSON.stringify({}),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (resp) {
+        if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Sblocco globale non riuscito"); return; }
+        var result = resp.data.result || {};
+        alert("Sblocco completato. Account riattivati: " + (result.users || 0) + ". IP sbloccati: " + (result.ips || 0) + ".");
+        loadUsers(); loadPresence(); loadIpBans();
+      })
+      .catch(function (err) { alert("Errore: " + err.message); });
+  }
+
   function appendModerationButtons(target, user, ip, ipBanned) {
     var actions = el("div", { class: "admin-ticket-actions admin-moderation-actions" });
     if (user && user.id) {
@@ -569,7 +586,10 @@
     var box = el("div", { class: "admin-dashboard" });
     var head = el("div", { class: "admin-page-head" });
     head.appendChild(el("div", { html: "<h3>Moderazione</h3><p class='muted small'>Da qui puoi sospendere, bannare, riattivare account e sbloccare IP anche quando l'utente non è più online.</p>" }));
-    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadUsers(); loadIpBans(); loadPresence(); } }));
+    head.appendChild(el("div", { class: "admin-head-actions" }, [
+      el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadUsers(); loadIpBans(); loadPresence(); } }),
+      el("button", { type: "button", class: "btn btn-ghost admin-btn-danger", text: "Sblocca tutti", onclick: moderationUnbanAll })
+    ]));
     box.appendChild(head);
     box.appendChild(renderModerationUsersList());
     box.appendChild(renderActiveIpBanList());
@@ -627,7 +647,7 @@
     return box;
   }
 
-  // === TAB SEGNALAZIONI (gestita lato server, non parte di workingContent) ===
+  // === TAB TICKET (gestita lato server, non parte di workingContent) ===
   var ticketsCache = [];
   function ticketStatusLabel(s) {
     return ({ pending: "In attesa", approved: "Approvata", declined: "Declinata", replied: "Risposta", in_chat: "Chat aperta", closed: "Chiusa" })[s] || s;
@@ -657,12 +677,12 @@
   function tab_tickets() {
     var box = el("div");
     var head = el("div", { class: "admin-tickets-head" });
-    head.appendChild(el("h3", { text: "Segnalazioni utenti", style: "margin:0" }));
+    head.appendChild(el("h3", { text: "Ticket utenti", style: "margin:0" }));
     head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadTickets(); } }));
     box.appendChild(head);
 
     if (!ticketsCache.length) {
-      box.appendChild(el("p", { class: "muted small", text: "Nessuna segnalazione ricevuta. Caricamento..." }));
+      box.appendChild(el("p", { class: "muted small", text: "Nessun ticket ricevuto. Caricamento..." }));
       loadTickets();
       return box;
     }
@@ -713,6 +733,62 @@
     return box;
   }
 
+
+  // === TAB CHAT LIVE ===
+  var chatsCache = [];
+  function chatStatusLabel(s) {
+    return ({ open: "Aperta", paused: "In attesa", suspended: "Sospesa", closed: "Chiusa" })[s] || s;
+  }
+  function loadChats(after) {
+    fetch(appBaseUrl + "/api/chats", { headers: authHeaders({ Accept: "application/json" }) })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) chatsCache = data.chats || [];
+        if (typeof after === "function") after();
+        if (activeTab === "chats") renderActiveTab();
+      })
+      .catch(function () { /* ignore */ });
+  }
+  function tab_chats() {
+    var box = el("div", { class: "admin-dashboard" });
+    var head = el("div", { class: "admin-page-head" });
+    head.appendChild(el("div", { html: "<h3>Chat live</h3><p class='muted small'>Conversazioni aperte dai ticket. La lista si aggiorna con gli eventi realtime.</p>" }));
+    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica chat", onclick: function () { loadChats(); } }));
+    box.appendChild(head);
+    var stats = el("div", { class: "admin-stat-grid" });
+    var openCount = (chatsCache || []).filter(function (c) { return c.status !== "closed"; }).length;
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + openCount + "</strong><span>Chat attive</span>" }));
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + ((chatsCache || []).length) + "</strong><span>Totale chat</span>" }));
+    box.appendChild(stats);
+    var list = el("div", { class: "admin-chat-list" });
+    if (!(chatsCache || []).length) {
+      list.appendChild(el("p", { class: "muted small", text: "Nessuna chat ancora caricata." }));
+      loadChats();
+    }
+    (chatsCache || []).forEach(function (c) {
+      var card = el("div", { class: "admin-ticket admin-chat-row admin-chat-" + c.status });
+      var header = el("div", { class: "admin-ticket-head" });
+      header.appendChild(el("span", { class: "chat-status-pill", "data-status": c.status, text: chatStatusLabel(c.status) }));
+      header.appendChild(el("span", { class: "admin-ticket-meta", text: "Chat #" + c.id + " · Ticket #" + c.ticketId + " · " + (c.username || c.userEmail || "Utente") + " · aggiornata " + timeAgo(c.updatedAt) }));
+      card.appendChild(header);
+      card.appendChild(el("p", { class: "muted small", text: "Admin assegnato: " + (c.adminUsername || "Staff") + " · Creata: " + (c.createdAt ? new Date(c.createdAt).toLocaleString() : "—") }));
+      var actions = el("div", { class: "admin-ticket-actions" });
+      actions.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Apri conversazione", onclick: function () { if (window.SynapseChat && window.SynapseChat.open) window.SynapseChat.open(c.id); } }));
+      if (c.status !== "closed") {
+        actions.appendChild(el("button", { type: "button", class: "btn btn-ghost", text: "Metti in attesa", onclick: function () {
+          fetch(appBaseUrl + "/api/chats/" + c.id + "/status", { method: "POST", headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }), body: JSON.stringify({ status: "paused" }) }).then(function () { loadChats(); });
+        } }));
+        actions.appendChild(el("button", { type: "button", class: "btn btn-ghost", text: "Riapri", onclick: function () {
+          fetch(appBaseUrl + "/api/chats/" + c.id + "/status", { method: "POST", headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }), body: JSON.stringify({ status: "open" }) }).then(function () { loadChats(); });
+        } }));
+      }
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
+    box.appendChild(list);
+    return box;
+  }
+
   function tab_status() {
     var s = workingStatus;
     var box = el("div");
@@ -745,7 +821,8 @@
     { id: "reviews", label: "Recensioni", render: tab_reviews },
     { id: "notes", label: "Note", render: tab_notes },
     { id: "promotions", label: "Promozioni", render: tab_promotions },
-    { id: "tickets", label: "Segnalazioni", render: tab_tickets },
+    { id: "tickets", label: "Ticket", render: tab_tickets },
+    { id: "chats", label: "Chat live", render: tab_chats },
     { id: "presence", label: "Presenza live", render: tab_presence },
     { id: "moderation", label: "Moderazione", render: tab_moderation },
     { id: "adminAccounts", label: "Utenti / Admin", render: tab_adminAccounts },
@@ -833,12 +910,17 @@
   document.addEventListener("synapse:auth-changed", function (ev) {
     var user = ev.detail && ev.detail.user;
     if (openBtn) openBtn.hidden = !(user && user.isAdmin);
-    if (user && user.isAdmin) { loadTickets(); loadPresence(); loadUsers(); loadIpBans(); }
+    if (user && user.isAdmin) { loadTickets(); loadChats(); loadPresence(); loadUsers(); loadIpBans(); }
   });
 
   // Aggiornamenti realtime dei ticket per l'admin
   document.addEventListener("synapse:tickets-changed", function () {
     loadTickets();
+    loadChats();
+  });
+
+  document.addEventListener("synapse:chat-event", function () {
+    loadChats();
   });
 
   document.addEventListener("synapse:presence", function (ev) {

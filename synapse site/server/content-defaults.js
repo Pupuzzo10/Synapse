@@ -44,7 +44,7 @@ module.exports = {
         features: [
           { text: "Fino a 10 comandi", excluded: false },
           { text: "Embed personalizzati", excluded: false },
-          { text: "Risposte con segnalazioni", excluded: false },
+          { text: "Risposte con ticket", excluded: false },
         ],
       },
       {
@@ -232,7 +232,7 @@ module.exports = {
       {
         name: "Pacchetto Iniziale — Sito Statico",
         price: "44,99",
-        badge: "Economico",
+        badge: "Entry",
         featured: false,
         tagline: "Soluzione semplice per essere online.",
         recommendedFor: "Attività molto piccole, negozi con poche informazioni, chi vuole solo essere online.",
@@ -315,13 +315,13 @@ module.exports = {
   },
   reviews: {
     title: "Clienti soddisfatti",
-    intro: "Molti utenti apprezzano la qualità del servizio Synapse: supporto rapido, consegne chiare e valutazioni molto positive.",
+    intro: "Recensioni pubbliche e simulazioni live mostrano il livello di cura del servizio: supporto rapido, consegne chiare e community soddisfatta.",
     ratingText: "Valutazione media elevata",
     items: [
-      { name: "Cliente Synapse", rating: 5, text: "Servizio veloce, chiaro e molto professionale." },
-      { name: "Owner Discord", rating: 5, text: "Bot consegnato come richiesto e supporto sempre disponibile." },
-      { name: "Attività locale", rating: 5, text: "Sito semplice da consultare e perfetto da smartphone." },
-      { name: "Community Manager", rating: 4.9, text: "Ottima esperienza, prezzi trasparenti e assistenza precisa." },
+      { name: "Lorenzo Bianchi", rating: 5, text: "Servizio veloce, chiaro e molto professionale." },
+      { name: "Marta Ricci", rating: 5, text: "Bot consegnato come richiesto e supporto sempre disponibile." },
+      { name: "Gabriele Esposito", rating: 5, text: "Sito semplice da consultare e perfetto da smartphone." },
+      { name: "Sara Morelli", rating: 5, text: "Ottima esperienza, prezzi trasparenti e assistenza precisa." },
     ],
   },
   promotions: {

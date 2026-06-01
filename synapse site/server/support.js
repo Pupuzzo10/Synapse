@@ -1,4 +1,4 @@
-// Gestione ticket di segnalazione + chat di supporto.
+// Gestione ticket + chat di supporto.
 // Usa la stessa istanza SQLite del modulo auth (authDb.db).
 
 const TICKET_STATUSES = ["pending", "approved", "declined", "replied", "in_chat", "closed"];
@@ -22,6 +22,9 @@ function rowToTicket(row) {
     userId: row.user_id,
     email: row.email,
     message: row.message,
+    subject: row.subject || null,
+    category: row.category || null,
+    productName: row.product_name || null,
     status: row.status,
     adminReply: row.admin_reply,
     chatId: row.chat_id,
@@ -71,8 +74,8 @@ function createSupport(authDb) {
 
   const stmts = {
     insertTicket: db.prepare(`
-      INSERT INTO tickets (user_id, email, message, status, ip, created_at, updated_at)
-      VALUES (@user_id, @email, @message, 'pending', @ip, @now, @now)
+      INSERT INTO tickets (user_id, email, message, subject, category, product_name, status, ip, created_at, updated_at)
+      VALUES (@user_id, @email, @message, @subject, @category, @product_name, 'pending', @ip, @now, @now)
     `),
     findTicketById: db.prepare(`
       SELECT t.*, u.username FROM tickets t
@@ -163,11 +166,14 @@ function createSupport(authDb) {
     `),
   };
 
-  function createTicket({ userId, email, message, ip }) {
+  function createTicket({ userId, email, message, subject, category, productName, ip }) {
     const result = stmts.insertTicket.run({
       user_id: userId,
       email,
       message,
+      subject: subject || null,
+      category: category || null,
+      product_name: productName || null,
       ip: ip || null,
       now: nowIso(),
     });
@@ -251,21 +257,23 @@ function createSupport(authDb) {
   }
 
   function postMessage({ chatId, senderId, senderRole, content }) {
+    const now = nowIso();
     const result = stmts.insertMessage.run({
       chat_id: chatId,
       sender_id: senderId,
       sender_role: senderRole,
       content,
-      now: nowIso(),
+      now,
     });
-    stmts.updateChatStatus.run({ id: chatId, status: getChat(chatId).status, now: nowIso() });
+    const current = getChat(chatId);
+    if (current) stmts.updateChatStatus.run({ id: chatId, status: current.status, now });
     return rowToMessage({
       id: result.lastInsertRowid,
       chat_id: chatId,
       sender_id: senderId,
       sender_role: senderRole,
       content,
-      created_at: nowIso(),
+      created_at: now,
     });
   }
 

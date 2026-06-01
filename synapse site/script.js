@@ -119,3 +119,34 @@
     setTimeout(function () { pingPresence(currentSection); }, 250);
   });
 })();
+
+(function () {
+  var modal = document.getElementById("privacy-modal");
+  var openBtn = document.getElementById("open-privacy");
+  var closeBtn = modal && modal.querySelector(".privacy-modal-close");
+  var lastFocus = null;
+  function openModal() {
+    if (!modal) return;
+    lastFocus = document.activeElement;
+    modal.removeAttribute("hidden");
+    document.body.style.overflow = "hidden";
+    if (closeBtn) closeBtn.focus();
+  }
+  function closeModal() {
+    if (!modal || modal.hasAttribute("hidden")) return;
+    modal.setAttribute("hidden", "");
+    document.body.style.overflow = "";
+    if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
+  }
+  if (openBtn) openBtn.addEventListener("click", openModal);
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
+  if (modal) {
+    modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !modal.hasAttribute("hidden")) {
+        e.preventDefault();
+        closeModal();
+      }
+    });
+  }
+})();
