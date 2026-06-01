@@ -24,6 +24,13 @@ function serializeUser(user) {
     emailVerified: Boolean(user.email_verified_at),
     emailVerifiedAt: user.email_verified_at,
     isAdmin: Boolean(user.is_admin),
+    accountStatus: user.account_status || "active",
+    accountStatusReason: user.account_status_reason || null,
+    accountStatusUpdatedAt: user.account_status_updated_at || null,
+    accountStatusUpdatedBy: user.account_status_updated_by || null,
+    registerIp: user.register_ip || null,
+    lastIp: user.last_ip || null,
+    lastSeenAt: user.last_seen_at || null,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
   };
@@ -42,6 +49,87 @@ function buildRateLimiter({ windowMs, limit, message }) {
       });
     },
   });
+}
+
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function normalizeIp(value) {
+  if (!value) return null;
+  let ip = String(value).split(",")[0].trim();
+  if (!ip) return null;
+  if (ip.startsWith("::ffff:")) ip = ip.slice(7);
+  if (ip === "::1") ip = "127.0.0.1";
+  return ip.slice(0, 80);
+}
+
+function getClientIp(req) {
+  return normalizeIp(req.ip || req.get("x-forwarded-for") || req.socket && req.socket.remoteAddress);
+}
+
+function isBlockedUser(user) {
+  const status = user && user.account_status ? String(user.account_status) : "active";
+  return status === "suspended" || status === "banned";
+}
+
+function blockInfoFromUser(user) {
+  if (!isBlockedUser(user)) return null;
+  const status = user.account_status === "banned" ? "banned" : "suspended";
+  return {
+    type: "account",
+    status,
+    title: status === "banned" ? "Account bannato" : "Account sospeso",
+    message: user.account_status_reason || (status === "banned"
+      ? "Il tuo account è stato bannato permanentemente. Non puoi più usare il sito."
+      : "Il tuo account è stato sospeso. Non puoi usare il sito finché lo staff non lo riattiva."),
+  };
+}
+
+function blockInfoFromIpBan(ipBan) {
+  if (!ipBan) return null;
+  return {
+    type: "ip",
+    status: "banned",
+    title: "Accesso bloccato",
+    message: ipBan.reason || "Questo indirizzo IP è stato bannato. Non puoi usare il sito.",
+  };
+}
+
+function sendBlockedHtml(res, block) {
+  const title = escapeHtml(block.title || "Accesso bloccato");
+  const message = escapeHtml(block.message || "Non puoi usare questo sito.");
+  res.status(403).send(`<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 2rem; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(circle at top, #202020, #050505 65%); color: #f5f5f5; }
+    .blocked-card { width: min(560px, 100%); border: 1px solid rgba(255,255,255,.14); background: rgba(15,15,15,.88); border-radius: 24px; padding: 2rem; box-shadow: 0 24px 80px rgba(0,0,0,.45); text-align: center; }
+    .blocked-kicker { display: inline-flex; align-items: center; gap: .5rem; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: .45rem .8rem; color: #f2b8b5; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: .75rem; }
+    h1 { margin: 1.2rem 0 .7rem; font-size: clamp(2rem, 7vw, 4rem); line-height: .95; }
+    p { margin: 0; color: #cfcfcf; line-height: 1.65; }
+    .blocked-note { margin-top: 1.2rem; font-size: .9rem; color: #8f8f8f; }
+  </style>
+</head>
+<body>
+  <main class="blocked-card" role="main" aria-live="polite">
+    <div class="blocked-kicker">Accesso negato</div>
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <p class="blocked-note">Per contestare il provvedimento devi contattare lo staff tramite un canale esterno autorizzato.</p>
+  </main>
+</body>
+</html>`);
 }
 
 function hashVerificationToken(rawToken) {
@@ -85,6 +173,30 @@ function createApp(overrides = {}) {
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser(config.sessionSecret));
   app.use(createSessionMiddleware(authDb, config));
+
+  app.use(function requestModerationContext(req, res, next) {
+    req.clientIp = getClientIp(req);
+    req.ipBan = authDb.findActiveIpBan(req.clientIp);
+    req.sessionUser = null;
+    if (req.authSession && req.authSession.userId) {
+      const user = authDb.findUserById(req.authSession.userId);
+      req.sessionUser = user || null;
+      if (user && req.clientIp) {
+        try { authDb.updateUserIp(user.id, req.clientIp); } catch (_e) { /* non bloccante */ }
+      }
+    }
+    next();
+  });
+
+  app.use("/api", function enforceModerationOnApi(req, res, next) {
+    // Logout e CSRF restano disponibili per permettere al client di ripulire la sessione.
+    if (req.path === "/auth/logout" || req.path === "/auth/csrf-token") return next();
+    const accountBlock = blockInfoFromUser(req.sessionUser);
+    const ipBlock = req.ipBan && !(req.sessionUser && req.sessionUser.is_admin) ? blockInfoFromIpBan(req.ipBan) : null;
+    const block = accountBlock || ipBlock;
+    if (block) return res.status(403).json({ ok: false, blocked: true, block, message: block.message });
+    next();
+  });
 
   const registerLimiter = buildRateLimiter({
     windowMs: 15 * 60 * 1000,
@@ -234,12 +346,22 @@ function createApp(overrides = {}) {
         });
       }
 
+      const linkedBlockedUsers = req.clientIp ? authDb.findUsersByIp(req.clientIp).filter(isBlockedUser) : [];
+      if (linkedBlockedUsers.length) {
+        return res.status(403).json({
+          ok: false,
+          blocked: true,
+          message: "Questo indirizzo IP risulta collegato a un account sospeso o bannato. Registrazione bloccata.",
+        });
+      }
+
       const passwordHash = await bcrypt.hash(password, config.bcryptRounds);
       const user = authDb.createUser({
         username,
         email,
         passwordHash,
         marketingOptIn,
+        registerIp: req.clientIp,
       });
 
       // Invio email di verifica in background, non blocca la registrazione.
@@ -297,8 +419,14 @@ function createApp(overrides = {}) {
         });
       }
 
+      if (isBlockedUser(user)) {
+        const block = blockInfoFromUser(user);
+        return res.status(403).json({ ok: false, blocked: true, block, message: block.message });
+      }
+
       const session = req.rotateSession(user.id);
       const freshUser = authDb.findUserById(user.id);
+      if (req.clientIp) authDb.updateUserIp(freshUser.id, req.clientIp);
 
       return res.json({
         ok: true,
@@ -328,6 +456,9 @@ function createApp(overrides = {}) {
   const support = createSupport(authDb);
 
   app.get("/api/events", function (req, res) {
+    const accountBlock = blockInfoFromUser(req.sessionUser);
+    const ipBlock = req.ipBan && !(req.sessionUser && req.sessionUser.is_admin) ? blockInfoFromIpBan(req.ipBan) : null;
+    if (accountBlock || ipBlock) return res.status(403).end();
     res.set({
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
@@ -351,6 +482,7 @@ function createApp(overrides = {}) {
       isAdmin: isAdminClient,
       username: currentUser && currentUser.username,
       email: currentUser && currentUser.email,
+      ip: req.clientIp,
       page,
     });
     broadcaster.broadcast("staff:presence", { online: broadcaster.hasAdminOnline() });
@@ -364,8 +496,30 @@ function createApp(overrides = {}) {
     res.json({ ok: true, online: broadcaster.hasAdminOnline() });
   });
 
+  function enrichPresenceSnapshot(snapshot) {
+    const byIp = {};
+    (snapshot.clients || []).forEach(function (client) {
+      if (!client.ip) return;
+      byIp[client.ip] = (byIp[client.ip] || 0) + 1;
+    });
+    return Object.assign({}, snapshot, {
+      clients: (snapshot.clients || []).map(function (client) {
+        const linkedAccounts = client.ip ? authDb.findUsersByIp(client.ip).map(serializeUser) : [];
+        return Object.assign({}, client, {
+          ipSharedOnlineCount: client.ip ? (byIp[client.ip] || 0) : 0,
+          linkedAccounts,
+          ipBanned: !!(client.ip && authDb.findActiveIpBan(client.ip)),
+        });
+      }),
+    });
+  }
+
+  function broadcastAdminPresence() {
+    broadcaster.broadcast("presence", enrichPresenceSnapshot(broadcaster.presenceSnapshot()), { userIds: adminUserIds() });
+  }
+
   app.get("/api/presence", requireAdmin, function (req, res) {
-    res.json({ ok: true, presence: broadcaster.presenceSnapshot() });
+    res.json({ ok: true, presence: enrichPresenceSnapshot(broadcaster.presenceSnapshot()) });
   });
 
   app.post("/api/presence/ping", requireCsrf, function (req, res) {
@@ -379,8 +533,10 @@ function createApp(overrides = {}) {
     if (!req.authSession.userId) {
       return res.status(401).json({ ok: false, message: "Devi effettuare l'accesso." });
     }
-    const user = authDb.findUserById(req.authSession.userId);
+    const user = req.sessionUser || authDb.findUserById(req.authSession.userId);
     if (!user) return res.status(401).json({ ok: false, message: "Sessione non valida." });
+    const block = blockInfoFromUser(user);
+    if (block) return res.status(403).json({ ok: false, blocked: true, block, message: block.message });
     req.currentUser = user;
     next();
   }
@@ -442,7 +598,13 @@ function createApp(overrides = {}) {
     if (message.length > 10000) {
       return res.status(400).json({ ok: false, message: "Il messaggio supera i 10.000 caratteri." });
     }
-    const ticket = support.createTicket({ userId: req.currentUser.id, email, message });
+    if (support.countActiveTicketsByUser(req.currentUser.id) >= 1) {
+      return res.status(429).json({
+        ok: false,
+        message: "Hai già una richiesta di supporto aperta. Per evitare spam puoi aprirne una sola alla volta.",
+      });
+    }
+    const ticket = support.createTicket({ userId: req.currentUser.id, email, message, ip: req.clientIp });
     broadcaster.broadcast("ticket:new", ticket, { userIds: adminUserIds() });
     broadcaster.broadcast("ticket:mine", ticket, { userIds: [req.currentUser.id] });
     res.status(201).json({ ok: true, ticket });
@@ -585,9 +747,73 @@ function createApp(overrides = {}) {
     res.json({ ok: true, chat });
   });
 
+  app.post("/api/admin/moderation/users/:id", requireCsrf, requireAdmin, function (req, res) {
+    const targetId = parseInt(req.params.id, 10);
+    const action = req.body && typeof req.body.action === "string" ? req.body.action : "";
+    const reason = req.body && typeof req.body.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
+    const banIp = !(req.body && req.body.banIp === false);
+    if (!targetId) return res.status(400).json({ ok: false, message: "Utente non valido." });
+    if (targetId === req.currentUser.id && action !== "activate") {
+      return res.status(400).json({ ok: false, message: "Non puoi sospendere o bannare il tuo stesso account." });
+    }
+    const target = authDb.findUserById(targetId);
+    if (!target) return res.status(404).json({ ok: false, message: "Utente inesistente." });
+    let status;
+    if (action === "suspend") status = "suspended";
+    else if (action === "ban") status = "banned";
+    else if (action === "activate") status = "active";
+    else return res.status(400).json({ ok: false, message: "Azione moderazione non valida." });
+    try {
+      const user = authDb.setUserModerationStatus(targetId, status, reason, req.currentUser.id);
+      const ips = [];
+      if (action === "ban" && banIp) {
+        [target.last_ip, target.register_ip].forEach(function (ip) {
+          if (ip && ips.indexOf(ip) === -1) {
+            authDb.banIp(ip, reason || "Ban permanente account collegato", req.currentUser.id);
+            ips.push(ip);
+          }
+        });
+      }
+      const block = status === "active" ? null : blockInfoFromUser(user);
+      const serializedUser = serializeUser(user);
+      broadcaster.broadcast("moderation:update", { user: serializedUser, block }, { userIds: [targetId] });
+      if (ips.length) broadcaster.broadcast("moderation:update", { user: serializedUser, block }, { ips });
+      broadcaster.broadcast("users:update", { user: serializedUser }, { userIds: adminUserIds() });
+      broadcastAdminPresence();
+      res.json({ ok: true, user: serializedUser, bannedIps: ips });
+    } catch (error) {
+      res.status(400).json({ ok: false, message: error.message });
+    }
+  });
+
+  app.post("/api/admin/moderation/ip", requireCsrf, requireAdmin, function (req, res) {
+    const ip = normalizeIp(req.body && req.body.ip);
+    const action = req.body && typeof req.body.action === "string" ? req.body.action : "";
+    const reason = req.body && typeof req.body.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
+    if (!ip) return res.status(400).json({ ok: false, message: "IP non valido." });
+    try {
+      let ipBan = null;
+      if (action === "ban") {
+        ipBan = authDb.banIp(ip, reason || "IP bannato da pannello admin", req.currentUser.id);
+        broadcaster.broadcast("moderation:update", { block: blockInfoFromIpBan(ipBan) }, { ips: [ip] });
+      } else if (action === "lift") {
+        authDb.liftIpBan(ip, req.currentUser.id);
+        ipBan = null;
+      } else {
+        return res.status(400).json({ ok: false, message: "Azione IP non valida." });
+      }
+      broadcastAdminPresence();
+      res.json({ ok: true, ip, ipBan });
+    } catch (error) {
+      res.status(400).json({ ok: false, message: error.message });
+    }
+  });
+
   app.get("/api/admin/users", requireAdmin, function (req, res) {
     const users = authDb.db.prepare(`
-      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin, created_at, updated_at
+      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin,
+        account_status, account_status_reason, account_status_updated_at, account_status_updated_by,
+        register_ip, last_ip, last_seen_at, created_at, updated_at
       FROM users
       ORDER BY is_admin DESC, created_at DESC
     `).all().map(serializeUser);
@@ -607,7 +833,9 @@ function createApp(overrides = {}) {
       const user = authDb.createUser({ username, email, passwordHash, marketingOptIn: false });
       authDb.setUserAdmin(user.id, true);
       authDb.db.prepare("UPDATE users SET email_verified_at = @now, updated_at = @now WHERE id = @id").run({ id: user.id, now: authDb.nowIso() });
-      res.status(201).json({ ok: true, user: serializeUser(authDb.findUserById(user.id)) });
+      const created = serializeUser(authDb.findUserById(user.id));
+      broadcaster.broadcast("users:update", { user: created }, { userIds: adminUserIds() });
+      res.status(201).json({ ok: true, user: created });
     } catch (error) {
       return next(error);
     }
@@ -633,6 +861,10 @@ function createApp(overrides = {}) {
   });
 
   app.get("/", function (req, res) {
+    const accountBlock = blockInfoFromUser(req.sessionUser);
+    const ipBlock = req.ipBan && !(req.sessionUser && req.sessionUser.is_admin) ? blockInfoFromIpBan(req.ipBan) : null;
+    const block = accountBlock || ipBlock;
+    if (block) return sendBlockedHtml(res, block);
     res.sendFile(path.join(config.rootDir, "index.html"));
   });
 

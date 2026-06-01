@@ -391,20 +391,89 @@
       })
       .catch(function () { /* ignore */ });
   }
+  function accountStatusLabel(status) {
+    return ({ active: "Attivo", suspended: "Sospeso", banned: "Bannato" })[status || "active"] || status;
+  }
+
+  function moderationUserAction(userId, action, banIp) {
+    var labels = { suspend: "sospendere", ban: "bannare permanentemente", activate: "riattivare" };
+    var reason = "";
+    if (action !== "activate") {
+      reason = prompt("Motivo per " + labels[action] + " l'account:", action === "ban" ? "Comportamento malevolo / spam" : "Verifica amministrativa in corso");
+      if (reason == null) return;
+    } else if (!confirm("Riattivare questo account?")) return;
+    fetch(appBaseUrl + "/api/admin/moderation/users/" + userId, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+      body: JSON.stringify({ action: action, reason: reason, banIp: banIp !== false }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (resp) {
+        if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Azione non riuscita"); return; }
+        loadPresence();
+        loadUsers();
+      })
+      .catch(function (err) { alert("Errore: " + err.message); });
+  }
+
+  function moderationIpAction(ip, action) {
+    if (!ip) return;
+    var reason = "";
+    if (action === "ban") {
+      reason = prompt("Motivo ban IP " + ip + ":", "IP collegato ad attività malevole o spam");
+      if (reason == null) return;
+    } else if (!confirm("Sbloccare l'IP " + ip + "?")) return;
+    fetch(appBaseUrl + "/api/admin/moderation/ip", {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+      body: JSON.stringify({ ip: ip, action: action, reason: reason }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (resp) {
+        if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Azione IP non riuscita"); return; }
+        loadPresence();
+      })
+      .catch(function (err) { alert("Errore: " + err.message); });
+  }
+
+  function appendModerationButtons(target, user, ip, ipBanned) {
+    var actions = el("div", { class: "admin-ticket-actions admin-moderation-actions" });
+    if (user && user.id) {
+      if ((user.accountStatus || "active") === "active") {
+        actions.appendChild(el("button", { type: "button", class: "btn btn-ghost", text: "Sospendi account", onclick: function () { moderationUserAction(user.id, "suspend", false); } }));
+        actions.appendChild(el("button", { type: "button", class: "btn btn-ghost admin-btn-danger", text: "Banna account + IP", onclick: function () { moderationUserAction(user.id, "ban", true); } }));
+      } else {
+        actions.appendChild(el("button", { type: "button", class: "btn btn-ghost", text: "Riattiva account", onclick: function () { moderationUserAction(user.id, "activate", false); } }));
+      }
+    }
+    if (ip) {
+      actions.appendChild(el("button", { type: "button", class: "btn btn-ghost" + (ipBanned ? "" : " admin-btn-danger"), text: ipBanned ? "Sblocca IP" : "Banna solo IP", onclick: function () { moderationIpAction(ip, ipBanned ? "lift" : "ban"); } }));
+    }
+    if (actions.childNodes.length) target.appendChild(actions);
+  }
+
   function tab_presence() {
     var box = el("div");
     var head = el("div", { class: "admin-tickets-head" });
     head.appendChild(el("h3", { text: "Utenti attivi in tempo reale", style: "margin:0" }));
     head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadPresence(); } }));
     box.appendChild(head);
-    box.appendChild(el("p", { class: "muted small", text: "Connessioni attive: " + (presenceCache.total || 0) + " · Admin online: " + (presenceCache.online ? "sì" : "no") }));
+    box.appendChild(el("p", { class: "muted small", text: "Connessioni attive: " + (presenceCache.total || 0) + " · Admin online: " + (presenceCache.online ? "sì" : "no") + " · IP tracciati per anti-abuso" }));
     var list = el("div", { class: "admin-presence-list" });
     (presenceCache.clients || []).forEach(function (c) {
+      var linked = c.linkedAccounts || [];
+      var currentAccount = linked.find(function (u) { return u.id === c.userId; }) || (c.userId ? { id: c.userId, username: c.username, email: c.email, isAdmin: c.isAdmin, accountStatus: "active" } : null);
       var row = el("div", { class: "admin-presence-row" });
-      row.appendChild(el("strong", { text: (c.username || "Visitatore") + (c.isAdmin ? " · Admin" : "") }));
+      row.appendChild(el("strong", { text: (c.username || "Visitatore") + (c.isAdmin ? " · Admin" : "") + " · " + accountStatusLabel(currentAccount && currentAccount.accountStatus) }));
       row.appendChild(el("span", { text: c.email || (c.userId ? "Account #" + c.userId : "Non registrato") }));
+      row.appendChild(el("span", { text: "IP: " + (c.ip || "non rilevato") + (c.ipBanned ? " · BANNATO" : "") }));
+      row.appendChild(el("span", { text: "Stesso IP online: " + (c.ipSharedOnlineCount || 0) + " · Account collegati: " + linked.length }));
+      if (linked.length > 1) {
+        row.appendChild(el("span", { class: "admin-warning-text", text: "Possibile multi-account: " + linked.map(function (u) { return (u.username || u.email) + " (" + accountStatusLabel(u.accountStatus) + ")"; }).join(", ") }));
+      }
       row.appendChild(el("span", { text: "Sezione: " + (c.page || "Sito") }));
       row.appendChild(el("span", { text: "Ultima attività: " + timeAgo(c.lastSeenAt) }));
+      appendModerationButtons(row, currentAccount, c.ip, c.ipBanned);
       list.appendChild(row);
     });
     if (!(presenceCache.clients || []).length) list.appendChild(el("p", { class: "muted small", text: "Nessuna connessione rilevata." }));
@@ -419,7 +488,7 @@
       .then(function (data) {
         if (data.ok) usersCache = data.users || [];
         if (typeof after === "function") after();
-        if (activeTab === "adminAccounts") renderActiveTab();
+        if (activeTab === "adminAccounts" || activeTab === "presence") renderActiveTab();
       })
       .catch(function () { /* ignore */ });
   }
@@ -447,9 +516,12 @@
     var list = el("div", { class: "admin-users-list" });
     (usersCache || []).forEach(function (u) {
       var row = el("div", { class: "admin-user-row" });
-      row.appendChild(el("strong", { text: u.username + (u.isAdmin ? " · Admin" : "") }));
+      row.appendChild(el("strong", { text: u.username + (u.isAdmin ? " · Admin" : "") + " · " + accountStatusLabel(u.accountStatus) }));
       row.appendChild(el("span", { text: u.email }));
+      row.appendChild(el("span", { text: "IP registrazione: " + (u.registerIp || "—") + " · ultimo IP: " + (u.lastIp || "—") }));
+      if (u.accountStatusReason) row.appendChild(el("span", { class: "admin-warning-text", text: "Motivo: " + u.accountStatusReason }));
       row.appendChild(el("span", { text: "Creato: " + new Date(u.createdAt).toLocaleString() }));
+      appendModerationButtons(row, u, u.lastIp || u.registerIp, false);
       list.appendChild(row);
     });
     if (!usersCache.length) {
@@ -676,5 +748,15 @@
   document.addEventListener("synapse:presence", function (ev) {
     presenceCache = ev.detail || presenceCache;
     if (activeTab === "presence") renderActiveTab();
+  });
+
+  document.addEventListener("synapse:users-changed", function () {
+    loadUsers();
+    loadPresence();
+  });
+
+  document.addEventListener("synapse:moderation-changed", function () {
+    loadUsers();
+    loadPresence();
   });
 })();

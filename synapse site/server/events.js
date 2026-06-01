@@ -21,6 +21,7 @@ function createBroadcaster() {
       username: client.username || (client.isAdmin ? "Admin" : "Visitatore"),
       email: client.email || null,
       isAdmin: !!client.isAdmin,
+      ip: client.ip || null,
       page: client.page || "Sito",
       lastEvent: client.lastEvent || "Connessione attiva",
       connectedAt: client.connectedAt,
@@ -55,6 +56,7 @@ function createBroadcaster() {
       username: opts.username || null,
       email: opts.email || null,
       isAdmin: !!opts.isAdmin,
+      ip: opts.ip || null,
       page: opts.page || "Sito",
       lastEvent: "Connessione SSE",
       connectedAt: now,
@@ -101,13 +103,18 @@ function createBroadcaster() {
     return found;
   }
 
-  // opts.userIds (array): se presente, evento privato consegnato solo a quegli utenti.
-  // Se assente, evento pubblico consegnato a tutti.
+  // opts.userIds (array): evento privato consegnato solo a quegli utenti.
+  // opts.ips (array): evento consegnato solo alle connessioni con quegli IP.
+  // Se assenti, evento pubblico consegnato a tutti.
   function broadcast(eventName, payload, opts) {
     const audience = opts && Array.isArray(opts.userIds) ? opts.userIds : null;
+    const ipAudience = opts && Array.isArray(opts.ips) ? opts.ips : null;
     clients.forEach(function (client) {
       if (audience) {
         if (client.userId == null || audience.indexOf(client.userId) === -1) return;
+      }
+      if (ipAudience) {
+        if (!client.ip || ipAudience.indexOf(client.ip) === -1) return;
       }
       safeWrite(client, eventName, payload);
     });

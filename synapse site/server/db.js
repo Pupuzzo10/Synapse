@@ -27,6 +27,13 @@ function ensureDatabase(dbPath) {
       marketing_opt_in INTEGER NOT NULL DEFAULT 0,
       email_verified_at TEXT,
       is_admin INTEGER NOT NULL DEFAULT 0,
+      account_status TEXT NOT NULL DEFAULT 'active',
+      account_status_reason TEXT,
+      account_status_updated_at TEXT,
+      account_status_updated_by INTEGER,
+      register_ip TEXT,
+      last_ip TEXT,
+      last_seen_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -81,6 +88,22 @@ function ensureDatabase(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_email_delivery_logs_user_id
       ON email_delivery_logs (user_id);
 
+    CREATE TABLE IF NOT EXISTS ip_bans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ip TEXT NOT NULL UNIQUE,
+      reason TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_by INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      lifted_at TEXT,
+      lifted_by INTEGER,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (lifted_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ip_bans_ip_active ON ip_bans (ip, active);
+
     CREATE TABLE IF NOT EXISTS tickets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -89,6 +112,7 @@ function ensureDatabase(dbPath) {
       status TEXT NOT NULL DEFAULT 'pending',
       admin_reply TEXT,
       chat_id INTEGER,
+      ip TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -129,24 +153,62 @@ function ensureDatabase(dbPath) {
     db.exec("ALTER TABLE chats ADD COLUMN closure_reason TEXT");
   }
 
-  // Migrazione leggera: aggiunge colonna is_admin se un DB pre-esistente non la contiene.
+  // Migrazione leggera: aggiunge colonne utente/moderazione se un DB pre-esistente non le contiene.
   const userColumns = db.prepare("PRAGMA table_info(users)").all();
-  if (!userColumns.some(function (c) { return c.name === "is_admin"; })) {
+  function hasUserColumn(name) { return userColumns.some(function (c) { return c.name === name; }); }
+  if (!hasUserColumn("is_admin")) {
     db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!hasUserColumn("account_status")) {
+    db.exec("ALTER TABLE users ADD COLUMN account_status TEXT NOT NULL DEFAULT 'active'");
+  }
+  if (!hasUserColumn("account_status_reason")) {
+    db.exec("ALTER TABLE users ADD COLUMN account_status_reason TEXT");
+  }
+  if (!hasUserColumn("account_status_updated_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN account_status_updated_at TEXT");
+  }
+  if (!hasUserColumn("account_status_updated_by")) {
+    db.exec("ALTER TABLE users ADD COLUMN account_status_updated_by INTEGER");
+  }
+  if (!hasUserColumn("register_ip")) {
+    db.exec("ALTER TABLE users ADD COLUMN register_ip TEXT");
+  }
+  if (!hasUserColumn("last_ip")) {
+    db.exec("ALTER TABLE users ADD COLUMN last_ip TEXT");
+  }
+  if (!hasUserColumn("last_seen_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN last_seen_at TEXT");
+  }
+
+  // Migrazione leggera: traccia IP anche sui ticket se la colonna manca.
+  const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();
+  if (!ticketColumns.some(function (c) { return c.name === "ip"; })) {
+    db.exec("ALTER TABLE tickets ADD COLUMN ip TEXT");
   }
 
   const statements = {
     insertUser: db.prepare(`
-      INSERT INTO users (username, email, password_hash, marketing_opt_in, email_verified_at, created_at, updated_at)
-      VALUES (@username, @email, @password_hash, @marketing_opt_in, NULL, @created_at, @updated_at)
+      INSERT INTO users (
+        username, email, password_hash, marketing_opt_in, email_verified_at,
+        account_status, register_ip, last_ip, last_seen_at, created_at, updated_at
+      )
+      VALUES (
+        @username, @email, @password_hash, @marketing_opt_in, NULL,
+        'active', @register_ip, @last_ip, @last_seen_at, @created_at, @updated_at
+      )
     `),
     findUserByEmail: db.prepare(`
-      SELECT id, username, email, password_hash, marketing_opt_in, email_verified_at, is_admin, created_at, updated_at
+      SELECT id, username, email, password_hash, marketing_opt_in, email_verified_at, is_admin,
+        account_status, account_status_reason, account_status_updated_at, account_status_updated_by,
+        register_ip, last_ip, last_seen_at, created_at, updated_at
       FROM users
       WHERE email = ?
     `),
     findUserById: db.prepare(`
-      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin, created_at, updated_at
+      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin,
+        account_status, account_status_reason, account_status_updated_at, account_status_updated_by,
+        register_ip, last_ip, last_seen_at, created_at, updated_at
       FROM users
       WHERE id = ?
     `),
@@ -155,6 +217,44 @@ function ensureDatabase(dbPath) {
     `),
     setUserAdmin: db.prepare(`
       UPDATE users SET is_admin = @is_admin, updated_at = @updated_at WHERE id = @id
+    `),
+    setUserModerationStatus: db.prepare(`
+      UPDATE users SET
+        account_status = @account_status,
+        account_status_reason = @account_status_reason,
+        account_status_updated_at = @account_status_updated_at,
+        account_status_updated_by = @account_status_updated_by,
+        updated_at = @updated_at
+      WHERE id = @id
+    `),
+    updateUserIp: db.prepare(`
+      UPDATE users SET last_ip = @last_ip, last_seen_at = @last_seen_at, updated_at = @updated_at WHERE id = @id
+    `),
+    findUsersByIp: db.prepare(`
+      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin,
+        account_status, account_status_reason, account_status_updated_at, account_status_updated_by,
+        register_ip, last_ip, last_seen_at, created_at, updated_at
+      FROM users
+      WHERE register_ip = @ip OR last_ip = @ip
+      ORDER BY updated_at DESC
+    `),
+    findActiveIpBan: db.prepare(`
+      SELECT * FROM ip_bans WHERE ip = ? AND active = 1
+    `),
+    upsertIpBan: db.prepare(`
+      INSERT INTO ip_bans (ip, reason, active, created_by, created_at, updated_at, lifted_at, lifted_by)
+      VALUES (@ip, @reason, 1, @created_by, @created_at, @updated_at, NULL, NULL)
+      ON CONFLICT(ip) DO UPDATE SET
+        reason = excluded.reason,
+        active = 1,
+        created_by = excluded.created_by,
+        updated_at = excluded.updated_at,
+        lifted_at = NULL,
+        lifted_by = NULL
+    `),
+    liftIpBan: db.prepare(`
+      UPDATE ip_bans SET active = 0, lifted_at = @lifted_at, lifted_by = @lifted_by, updated_at = @updated_at
+      WHERE ip = @ip AND active = 1
     `),
     getSetting: db.prepare(`
       SELECT key, value_json, updated_at FROM app_settings WHERE key = ?
@@ -265,13 +365,17 @@ function ensureDatabase(dbPath) {
     statements.deleteExpiredSessions.run(now);
   }
 
-  function createUser({ username, email, passwordHash, marketingOptIn }) {
+  function createUser({ username, email, passwordHash, marketingOptIn, registerIp }) {
     const now = nowIso();
+    const ip = registerIp || null;
     const result = statements.insertUser.run({
       username,
       email,
       password_hash: passwordHash,
       marketing_opt_in: marketingOptIn ? 1 : 0,
+      register_ip: ip,
+      last_ip: ip,
+      last_seen_at: ip ? now : null,
       created_at: now,
       updated_at: now,
     });
@@ -408,6 +512,59 @@ function ensureDatabase(dbPath) {
     });
   }
 
+  function setUserModerationStatus(userId, status, reason, adminId) {
+    if (["active", "suspended", "banned"].indexOf(status) === -1) {
+      throw new Error("Stato account non valido");
+    }
+    const now = nowIso();
+    statements.setUserModerationStatus.run({
+      id: userId,
+      account_status: status,
+      account_status_reason: status === "active" ? null : (reason || null),
+      account_status_updated_at: now,
+      account_status_updated_by: adminId || null,
+      updated_at: now,
+    });
+    return findUserById(userId);
+  }
+
+  function updateUserIp(userId, ip) {
+    if (!userId || !ip) return null;
+    const now = nowIso();
+    statements.updateUserIp.run({ id: userId, last_ip: ip, last_seen_at: now, updated_at: now });
+    return findUserById(userId);
+  }
+
+  function findUsersByIp(ip) {
+    if (!ip) return [];
+    return statements.findUsersByIp.all({ ip });
+  }
+
+  function findActiveIpBan(ip) {
+    if (!ip) return null;
+    return statements.findActiveIpBan.get(ip) || null;
+  }
+
+  function banIp(ip, reason, adminId) {
+    if (!ip) throw new Error("IP non valido");
+    const now = nowIso();
+    statements.upsertIpBan.run({
+      ip,
+      reason: reason || null,
+      created_by: adminId || null,
+      created_at: now,
+      updated_at: now,
+    });
+    return findActiveIpBan(ip);
+  }
+
+  function liftIpBan(ip, adminId) {
+    if (!ip) throw new Error("IP non valido");
+    const now = nowIso();
+    statements.liftIpBan.run({ ip, lifted_at: now, lifted_by: adminId || null, updated_at: now });
+    return findActiveIpBan(ip);
+  }
+
   function getSetting(key) {
     const row = statements.getSetting.get(key);
     if (!row) return null;
@@ -452,6 +609,12 @@ function ensureDatabase(dbPath) {
     findUserById,
     updateUserPassword,
     setUserAdmin,
+    setUserModerationStatus,
+    updateUserIp,
+    findUsersByIp,
+    findActiveIpBan,
+    banIp,
+    liftIpBan,
     getSetting,
     setSetting,
     createEmailVerificationToken,

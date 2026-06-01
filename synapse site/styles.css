@@ -1747,3 +1747,20 @@ main {
     opacity: 1 !important;
   }
 }
+
+/* Moderazione admin: tracking IP, multi-account e ban/sospensioni */
+.admin-warning-text {
+  color: #f2b8b5;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.admin-moderation-actions {
+  margin-top: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.admin-presence-row span,
+.admin-user-row span {
+  overflow-wrap: anywhere;
+}

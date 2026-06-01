@@ -25,6 +25,7 @@ function rowToTicket(row) {
     status: row.status,
     adminReply: row.admin_reply,
     chatId: row.chat_id,
+    ip: row.ip || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     username: row.username || null,
@@ -70,8 +71,8 @@ function createSupport(authDb) {
 
   const stmts = {
     insertTicket: db.prepare(`
-      INSERT INTO tickets (user_id, email, message, status, created_at, updated_at)
-      VALUES (@user_id, @email, @message, 'pending', @now, @now)
+      INSERT INTO tickets (user_id, email, message, status, ip, created_at, updated_at)
+      VALUES (@user_id, @email, @message, 'pending', @ip, @now, @now)
     `),
     findTicketById: db.prepare(`
       SELECT t.*, u.username FROM tickets t
@@ -90,6 +91,11 @@ function createSupport(authDb) {
       LEFT JOIN users u ON u.id = t.user_id
       WHERE t.user_id = ?
       ORDER BY t.created_at DESC
+    `),
+    countActiveTicketsByUser: db.prepare(`
+      SELECT COUNT(*) AS count
+      FROM tickets
+      WHERE user_id = ? AND status NOT IN ('closed', 'declined')
     `),
     updateTicketStatus: db.prepare(`
       UPDATE tickets SET status = @status, updated_at = @now WHERE id = @id
@@ -157,11 +163,12 @@ function createSupport(authDb) {
     `),
   };
 
-  function createTicket({ userId, email, message }) {
+  function createTicket({ userId, email, message, ip }) {
     const result = stmts.insertTicket.run({
       user_id: userId,
       email,
       message,
+      ip: ip || null,
       now: nowIso(),
     });
     return rowToTicket(stmts.findTicketById.get(result.lastInsertRowid));
@@ -170,6 +177,10 @@ function createSupport(authDb) {
   function getTicket(id) { return rowToTicket(stmts.findTicketById.get(id)); }
   function listAllTickets() { return stmts.listTickets.all().map(rowToTicket); }
   function listMyTickets(userId) { return stmts.listTicketsByUser.all(userId).map(rowToTicket); }
+  function countActiveTicketsByUser(userId) {
+    const row = stmts.countActiveTicketsByUser.get(userId);
+    return row ? Number(row.count || 0) : 0;
+  }
 
   function setTicketStatus(id, status) {
     if (TICKET_STATUSES.indexOf(status) === -1) throw new Error("Stato ticket non valido");
@@ -270,6 +281,7 @@ function createSupport(authDb) {
     getTicket,
     listAllTickets,
     listMyTickets,
+    countActiveTicketsByUser,
     setTicketStatus,
     replyToTicket,
     openChatForTicket,

@@ -81,6 +81,20 @@
     return open || null;
   }
 
+  function hasActiveSupportTicket() {
+    return (myTickets || []).some(function (t) {
+      return ["closed", "declined"].indexOf(t.status) === -1;
+    });
+  }
+
+  function applySupportLimit() {
+    if (!form || !currentUser) return;
+    var blocked = hasActiveSupportTicket();
+    if (messageInput) messageInput.disabled = blocked;
+    if (submitBtn) submitBtn.disabled = blocked;
+    if (blocked) setMsg("Hai già una richiesta di supporto aperta. Per evitare spam puoi aprirne una sola alla volta.", "error");
+  }
+
   function refreshMyChats() {
     if (!currentUser) { myChats = []; updateChatBtn(); return; }
     fetch(appBaseUrl + "/api/chats/mine", { headers: authHeaders() })
@@ -128,6 +142,8 @@
       li.className = "report-empty";
       li.textContent = "Nessuna segnalazione inviata.";
       mineList.appendChild(li);
+      if (messageInput) messageInput.disabled = false;
+      if (submitBtn) submitBtn.disabled = false;
       return;
     }
     myTickets.forEach(function (t) {
@@ -168,6 +184,7 @@
       }
       mineList.appendChild(li);
     });
+    applySupportLimit();
   }
 
   function loadMine() {
@@ -190,6 +207,10 @@
     e.preventDefault();
     if (!currentUser) {
       setMsg("Devi accedere per inviare una segnalazione.", "error");
+      return;
+    }
+    if (hasActiveSupportTicket()) {
+      setMsg("Hai già una richiesta di supporto aperta. Attendi la chiusura prima di inviarne un'altra.", "error");
       return;
     }
     setMsg("Invio in corso...", "info");

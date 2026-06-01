@@ -456,6 +456,22 @@
         document.dispatchEvent(new CustomEvent("synapse:presence", { detail: payload }));
       } catch (_e) { /* ignore */ }
     });
+    src.addEventListener("users:update", function (ev) {
+      try {
+        var payload = JSON.parse(ev.data);
+        document.dispatchEvent(new CustomEvent("synapse:users-changed", { detail: payload }));
+      } catch (_e) { /* ignore */ }
+    });
+    src.addEventListener("moderation:update", function (ev) {
+      try {
+        var payload = JSON.parse(ev.data);
+        if (payload && payload.block) {
+          window.location.reload();
+        } else {
+          document.dispatchEvent(new CustomEvent("synapse:moderation-changed", { detail: payload }));
+        }
+      } catch (_e) { /* ignore */ }
+    });
   }
 
   window.SynapseContent = { reload: loadAll };
