@@ -47,6 +47,10 @@ function createConfig(overrides = {}) {
       (overrides.adminEmail || process.env.ADMIN_EMAIL || "").trim().toLowerCase(),
     adminPassword: overrides.adminPassword || process.env.ADMIN_PASSWORD || "",
     adminUsername: overrides.adminUsername || process.env.ADMIN_USERNAME || "Admin",
+    ai: {
+      anthropicApiKey: overrides.anthropicApiKey || process.env.ANTHROPIC_API_KEY || "",
+      anthropicModel: overrides.anthropicModel || process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-20241022",
+    },
     smtp: {
       host: overrides.smtpHost || process.env.SMTP_HOST || "",
       port: parseIntOr(overrides.smtpPort || process.env.SMTP_PORT, 587),

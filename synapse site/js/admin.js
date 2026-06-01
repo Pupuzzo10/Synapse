@@ -748,6 +748,8 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.ok) chatsCache = data.chats || [];
+        updateAdminNavAlert();
+        renderTabs();
         if (typeof after === "function") after();
         if (activeTab === "chats") renderActiveTab();
       })
@@ -761,7 +763,9 @@
     box.appendChild(head);
     var stats = el("div", { class: "admin-stat-grid" });
     var openCount = (chatsCache || []).filter(function (c) { return c.status !== "closed"; }).length;
+    var needCount = humanAlertCount();
     stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + openCount + "</strong><span>Chat attive</span>" }));
+    stats.appendChild(el("div", { class: "admin-stat-card admin-stat-alert", html: "<strong>" + needCount + "</strong><span>Richiedono admin</span>" }));
     stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + ((chatsCache || []).length) + "</strong><span>Totale chat</span>" }));
     box.appendChild(stats);
     var list = el("div", { class: "admin-chat-list" });
@@ -770,12 +774,12 @@
       loadChats();
     }
     (chatsCache || []).forEach(function (c) {
-      var card = el("div", { class: "admin-ticket admin-chat-row admin-chat-" + c.status });
+      var card = el("div", { class: "admin-ticket admin-chat-row admin-chat-" + c.status + (c.needsAdmin && c.status !== "closed" ? " admin-chat-needs-admin" : "") });
       var header = el("div", { class: "admin-ticket-head" });
-      header.appendChild(el("span", { class: "chat-status-pill", "data-status": c.status, text: chatStatusLabel(c.status) }));
+      header.appendChild(el("span", { class: "chat-status-pill", "data-status": c.needsAdmin ? "needs-admin" : c.status, text: c.needsAdmin && c.status !== "closed" ? "Admin richiesto" : chatStatusLabel(c.status) }));
       header.appendChild(el("span", { class: "admin-ticket-meta", text: "Chat #" + c.id + " · Ticket #" + c.ticketId + " · " + (c.username || c.userEmail || "Utente") + " · aggiornata " + timeAgo(c.updatedAt) }));
       card.appendChild(header);
-      card.appendChild(el("p", { class: "muted small", text: "Admin assegnato: " + (c.adminUsername || "Staff") + " · Creata: " + (c.createdAt ? new Date(c.createdAt).toLocaleString() : "—") }));
+      card.appendChild(el("p", { class: "muted small", text: "Gestione: " + (c.aiEnabled && !c.needsAdmin ? "AI attiva" : "staff") + " · Admin assegnato: " + (c.adminUsername || "Staff") + " · Creata: " + (c.createdAt ? new Date(c.createdAt).toLocaleString() : "—") }));
       var actions = el("div", { class: "admin-ticket-actions" });
       actions.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Apri conversazione", onclick: function () { if (window.SynapseChat && window.SynapseChat.open) window.SynapseChat.open(c.id); } }));
       if (c.status !== "closed") {
@@ -841,11 +845,38 @@
     { id: "status", label: "Stato servizio", render: tab_status },
   ];
 
+  function humanAlertCount() {
+    return (chatsCache || []).filter(function (c) { return c && c.status !== "closed" && c.needsAdmin; }).length;
+  }
+
+  function updateAdminNavAlert() {
+    if (!openBtn) return;
+    var alerts = humanAlertCount();
+    if (alerts > 0) {
+      openBtn.classList.add("has-alert");
+      openBtn.setAttribute("data-alert", String(alerts));
+      openBtn.title = alerts + " richiesta/e attendono un admin";
+    } else {
+      openBtn.classList.remove("has-alert");
+      openBtn.removeAttribute("data-alert");
+      openBtn.title = "Admin";
+    }
+  }
+
   function renderTabs() {
     if (!tabsNav) return;
     clear(tabsNav);
+    var alerts = humanAlertCount();
+    updateAdminNavAlert();
     TABS.forEach(function (t) {
-      var b = el("button", { type: "button", class: "admin-tab" + (t.id === activeTab ? " is-active" : ""), text: t.label, onclick: function () { activeTab = t.id; renderTabs(); renderActiveTab(); } });
+      var cls = "admin-tab" + (t.id === activeTab ? " is-active" : "");
+      var attrs = { type: "button", class: cls, text: t.label, onclick: function () { activeTab = t.id; renderTabs(); renderActiveTab(); } };
+      if ((t.id === "tickets" || t.id === "chats") && alerts > 0) {
+        attrs.class += " has-alert";
+        attrs["data-alert"] = String(alerts);
+        attrs.title = alerts + " richiesta/e in attesa di admin";
+      }
+      var b = el("button", attrs);
       tabsNav.appendChild(b);
     });
   }
@@ -933,6 +964,7 @@
 
   document.addEventListener("synapse:chat-event", function () {
     loadChats();
+    loadTickets();
   });
 
   document.addEventListener("synapse:presence", function (ev) {

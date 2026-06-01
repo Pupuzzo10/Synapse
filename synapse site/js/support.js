@@ -94,6 +94,7 @@
     if (messageInput) messageInput.disabled = blocked;
     if (submitBtn) submitBtn.disabled = blocked;
     if (blocked) setMsg("Hai già un ticket aperto. Usa la chat attiva oppure attendi la chiusura del ticket corrente.", "error");
+    else if (feedback && /Hai già un ticket aperto/i.test(feedback.textContent || "")) setMsg("", "info");
   }
 
   function refreshMyChats() {
@@ -208,7 +209,7 @@
     if (!currentUser) return Promise.resolve();
     return fetch(appBaseUrl + "/api/tickets/mine", { headers: authHeaders({ Accept: "application/json" }) })
       .then(function (r) { return r.json(); })
-      .then(function (data) { if (data && data.ok) { myTickets = data.tickets || []; renderMine(); } })
+      .then(function (data) { if (data && data.ok) { myTickets = (data.tickets || []).filter(function (t) { return ["closed", "declined"].indexOf(t.status) === -1; }); renderMine(); } })
       .catch(function () {});
   }
 
@@ -242,7 +243,7 @@
       .then(function (resp) {
         if (submitBtn) submitBtn.disabled = false;
         if (!resp.ok || !resp.data.ok) { setMsg(resp.data.message || "Apertura ticket fallita.", "error"); return; }
-        setMsg(resp.data.chat ? "Ticket aperto. Chat avviata." : "Ticket aperto. Lo staff lo prenderà in carico.", "success");
+        setMsg(resp.data.chat ? "Ticket aperto. Chat AI avviata." : "Ticket aperto. Lo staff lo prenderà in carico.", "success");
         if (messageInput) messageInput.value = "";
         updateCounter();
         loadMine();
@@ -285,6 +286,12 @@
   function upsertMineTicket(t) {
     if (!t) return;
     var idx = myTickets.findIndex(function (x) { return x.id === t.id; });
+    if (["closed", "declined"].indexOf(t.status) !== -1) {
+      if (idx >= 0) myTickets.splice(idx, 1);
+      renderMine();
+      applySupportLimit();
+      return;
+    }
     if (idx >= 0) myTickets[idx] = t; else myTickets.unshift(t);
     renderMine();
   }

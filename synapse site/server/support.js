@@ -44,6 +44,8 @@ function rowToChat(row) {
     adminId: row.admin_id,
     status: row.status,
     userCanSend: !!row.user_can_send,
+    needsAdmin: !!row.needs_admin,
+    aiEnabled: !!row.ai_enabled,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     closedAt: row.closed_at,
@@ -92,7 +94,7 @@ function createSupport(authDb) {
     listTicketsByUser: db.prepare(`
       SELECT t.*, u.username FROM tickets t
       LEFT JOIN users u ON u.id = t.user_id
-      WHERE t.user_id = ?
+      WHERE t.user_id = ? AND t.status NOT IN ('closed', 'declined')
       ORDER BY t.created_at DESC
     `),
     countActiveTicketsByUser: db.prepare(`
@@ -111,8 +113,8 @@ function createSupport(authDb) {
     `),
 
     insertChat: db.prepare(`
-      INSERT INTO chats (ticket_id, user_id, admin_id, status, user_can_send, created_at, updated_at)
-      VALUES (@ticket_id, @user_id, @admin_id, 'open', 1, @now, @now)
+      INSERT INTO chats (ticket_id, user_id, admin_id, status, user_can_send, needs_admin, ai_enabled, created_at, updated_at)
+      VALUES (@ticket_id, @user_id, @admin_id, 'open', 1, 0, 1, @now, @now)
     `),
     findChatById: db.prepare(`
       SELECT c.*, u.username, u.email AS user_email, a.username AS admin_username
@@ -155,6 +157,15 @@ function createSupport(authDb) {
     `),
     updateChatPermissions: db.prepare(`
       UPDATE chats SET user_can_send = @user_can_send, updated_at = @now WHERE id = @id
+    `),
+    updateChatNeedsAdmin: db.prepare(`
+      UPDATE chats SET needs_admin = @needs_admin, ai_enabled = @ai_enabled, updated_at = @now WHERE id = @id
+    `),
+    disableAiForChat: db.prepare(`
+      UPDATE chats SET ai_enabled = 0, needs_admin = 0, updated_at = @now WHERE id = @id
+    `),
+    touchChat: db.prepare(`
+      UPDATE chats SET updated_at = @now WHERE id = @id
     `),
 
     insertMessage: db.prepare(`
@@ -261,6 +272,21 @@ function createSupport(authDb) {
     return getChat(id);
   }
 
+  function markChatNeedsAdmin(id, needsAdmin) {
+    stmts.updateChatNeedsAdmin.run({
+      id,
+      needs_admin: needsAdmin ? 1 : 0,
+      ai_enabled: needsAdmin ? 0 : 1,
+      now: nowIso(),
+    });
+    return getChat(id);
+  }
+
+  function disableAiForChat(id) {
+    stmts.disableAiForChat.run({ id, now: nowIso() });
+    return getChat(id);
+  }
+
   function postMessage({ chatId, senderId, senderRole, content }) {
     const now = nowIso();
     const result = stmts.insertMessage.run({
@@ -271,7 +297,7 @@ function createSupport(authDb) {
       now,
     });
     const current = getChat(chatId);
-    if (current) stmts.updateChatStatus.run({ id: chatId, status: current.status, now });
+    if (current) stmts.touchChat.run({ id: chatId, now });
     return rowToMessage({
       id: result.lastInsertRowid,
       chat_id: chatId,
@@ -304,6 +330,8 @@ function createSupport(authDb) {
     setChatStatus,
     closeChat,
     setChatPermissions,
+    markChatNeedsAdmin,
+    disableAiForChat,
     postMessage,
     listMessages,
   };

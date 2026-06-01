@@ -14,6 +14,7 @@ const { createSessionMiddleware, requireCsrf } = require("./session-store");
 const adminOps = require("./admin-ops");
 const { createBroadcaster } = require("./events");
 const { createSupport } = require("./support");
+const { answerSupportQuestion } = require("./ai-support");
 
 function serializeUser(user) {
   return {
@@ -618,6 +619,75 @@ function createApp(overrides = {}) {
     return ids.length ? ids[0] : null;
   }
 
+  function broadcastChatMessage(chat, msg) {
+    if (!chat || !msg) return;
+    const audience = adminUserIds().concat([chat.userId]);
+    broadcaster.broadcast("chat:message", { chatId: chat.id, message: msg }, { userIds: audience });
+  }
+
+  function broadcastChatUpdate(chat) {
+    if (!chat) return;
+    const audience = adminUserIds().concat([chat.userId]);
+    broadcaster.broadcast("chat:update", chat, { userIds: audience });
+    if (chat.ticketId) {
+      const ticket = support.getTicket(chat.ticketId);
+      if (ticket) broadcaster.broadcast("ticket:update", ticket, { userIds: audience });
+    }
+  }
+
+  function broadcastBotTyping(chat, isTyping) {
+    if (!chat) return;
+    broadcaster.broadcast("chat:typing", {
+      chatId: chat.id,
+      userId: 0,
+      username: "Assistente AI",
+      role: "bot",
+      isTyping: !!isTyping,
+      at: new Date().toISOString(),
+    }, { userIds: adminUserIds().concat([chat.userId]) });
+  }
+
+  function postBotMessage(chatId, content) {
+    const msg = support.postMessage({
+      chatId,
+      senderId: 0,
+      senderRole: "bot",
+      content,
+    });
+    const chat = support.getChat(chatId);
+    broadcastChatMessage(chat, msg);
+    if (chat) broadcastChatUpdate(chat);
+    return { chat, msg };
+  }
+
+  async function runAiSupportReply(chatId, userMessage) {
+    let chat = support.getChat(chatId);
+    if (!chat || chat.status === "closed" || chat.status === "suspended" || !chat.aiEnabled || chat.needsAdmin) return;
+    broadcastBotTyping(chat, true);
+    try {
+      const history = support.listMessages(chat.id);
+      const ai = await answerSupportQuestion({
+        apiKey: config.ai && config.ai.anthropicApiKey,
+        model: config.ai && config.ai.anthropicModel,
+        message: userMessage,
+        history,
+        content: adminOps.getContent(authDb),
+        status: adminOps.getStatus(authDb),
+      });
+      if (ai.escalate) {
+        chat = support.markChatNeedsAdmin(chat.id, true) || chat;
+        broadcastChatUpdate(chat);
+      }
+      postBotMessage(chat.id, ai.text || "Ho chiamato un admin. Uno staffer continuerà la richiesta appena possibile.");
+    } catch (error) {
+      chat = support.markChatNeedsAdmin(chat.id, true) || chat;
+      broadcastChatUpdate(chat);
+      postBotMessage(chat.id, "In questo momento l'assistente AI non riesce a completare la richiesta. Ho chiamato un admin per continuare il supporto.");
+    } finally {
+      broadcastBotTyping(support.getChat(chatId) || chat, false);
+    }
+  }
+
   app.get("/api/content", function (req, res) {
     res.json({ ok: true, content: adminOps.getContent(authDb) });
   });
@@ -655,7 +725,6 @@ function createApp(overrides = {}) {
     const subject = req.body && typeof req.body.subject === "string" ? req.body.subject.trim().slice(0, 160) : "";
     const category = req.body && typeof req.body.category === "string" ? req.body.category.trim().slice(0, 80) : "";
     const productName = req.body && typeof req.body.productName === "string" ? req.body.productName.trim().slice(0, 160) : "";
-    const autoOpenChat = !!(req.body && req.body.autoOpenChat);
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ ok: false, message: "Email non valida." });
     }
@@ -681,9 +750,24 @@ function createApp(overrides = {}) {
       ip: req.clientIp,
     });
     let chat = null;
-    if (autoOpenChat) {
-      const adminId = firstAdminId();
-      if (adminId) chat = support.openChatForTicket(ticket.id, adminId);
+    let initialUserMessage = null;
+    let initialBotMessage = null;
+    const adminId = firstAdminId();
+    if (adminId) {
+      chat = support.openChatForTicket(ticket.id, adminId);
+      initialUserMessage = support.postMessage({
+        chatId: chat.id,
+        senderId: req.currentUser.id,
+        senderRole: "user",
+        content: message,
+      });
+      initialBotMessage = support.postMessage({
+        chatId: chat.id,
+        senderId: 0,
+        senderRole: "bot",
+        content: "Ciao, sono l'assistente AI Synapse. Posso aiutarti solo su servizi, prezzi, ticket, rimborsi, privacy e prodotti del sito. Se vuoi parlare con un umano, scrivi: voglio parlare con un umano.",
+      });
+      chat = support.getChat(chat.id);
     }
     const finalTicket = chat ? support.getTicket(ticket.id) : ticket;
     const audience = adminUserIds().concat([req.currentUser.id]);
@@ -692,6 +776,9 @@ function createApp(overrides = {}) {
     if (chat) {
       broadcaster.broadcast("ticket:update", finalTicket, { userIds: audience });
       broadcaster.broadcast("chat:open", chat, { userIds: audience });
+      if (initialUserMessage) broadcaster.broadcast("chat:message", { chatId: chat.id, message: initialUserMessage }, { userIds: audience });
+      if (initialBotMessage) broadcaster.broadcast("chat:message", { chatId: chat.id, message: initialBotMessage }, { userIds: audience });
+      setImmediate(function () { runAiSupportReply(chat.id, message).catch(function (error) { console.error("[ai-support]", error); }); });
     }
     res.status(201).json({ ok: true, ticket: finalTicket, chat });
   });
@@ -788,6 +875,9 @@ function createApp(overrides = {}) {
     const content = req.body && typeof req.body.content === "string" ? req.body.content.trim() : "";
     if (!content) return res.status(400).json({ ok: false, message: "Messaggio vuoto." });
     if (content.length > 4000) return res.status(400).json({ ok: false, message: "Messaggio troppo lungo (max 4000)." });
+    if (senderRole === "admin") {
+      support.disableAiForChat(chat.id);
+    }
     const msg = support.postMessage({
       chatId: chat.id,
       senderId: req.currentUser.id,
@@ -799,6 +889,9 @@ function createApp(overrides = {}) {
     broadcaster.broadcast("chat:message", { chatId: chat.id, message: msg }, { userIds: audience });
     if (updatedChat) broadcaster.broadcast("chat:update", updatedChat, { userIds: audience });
     res.status(201).json({ ok: true, message: msg, chat: updatedChat });
+    if (senderRole === "user" && updatedChat && updatedChat.aiEnabled && !updatedChat.needsAdmin) {
+      setImmediate(function () { runAiSupportReply(chat.id, content).catch(function (error) { console.error("[ai-support]", error); }); });
+    }
   });
 
   app.post("/api/chats/:id/typing", requireCsrf, requireAuth, function (req, res) {

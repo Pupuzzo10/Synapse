@@ -130,9 +130,12 @@ function ensureDatabase(dbPath) {
       admin_id INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
       user_can_send INTEGER NOT NULL DEFAULT 1,
+      needs_admin INTEGER NOT NULL DEFAULT 0,
+      ai_enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      closed_at TEXT
+      closed_at TEXT,
+      closure_reason TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats (user_id);
@@ -150,10 +153,17 @@ function ensureDatabase(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages (chat_id);
   `);
 
-  // Migrazione leggera: aggiunge colonna closure_reason a chats se assente.
+  // Migrazione leggera: completa le colonne chat se il DB e' precedente.
   const chatColumns = db.prepare("PRAGMA table_info(chats)").all();
-  if (!chatColumns.some(function (c) { return c.name === "closure_reason"; })) {
+  function hasChatColumn(name) { return chatColumns.some(function (c) { return c.name === name; }); }
+  if (!hasChatColumn("closure_reason")) {
     db.exec("ALTER TABLE chats ADD COLUMN closure_reason TEXT");
+  }
+  if (!hasChatColumn("needs_admin")) {
+    db.exec("ALTER TABLE chats ADD COLUMN needs_admin INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!hasChatColumn("ai_enabled")) {
+    db.exec("ALTER TABLE chats ADD COLUMN ai_enabled INTEGER NOT NULL DEFAULT 0");
   }
 
   // Migrazione leggera: aggiunge colonne utente/moderazione se un DB pre-esistente non le contiene.

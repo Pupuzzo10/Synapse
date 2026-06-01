@@ -63,6 +63,7 @@
   function partnerName() {
     if (!currentChat) return "Supporto";
     if (currentUser && currentUser.isAdmin) return currentChat.username || currentChat.userEmail || "Utente";
+    if (currentChat.aiEnabled && !currentChat.needsAdmin) return "Assistente AI Synapse";
     return currentChat.adminUsername || "Staff Synapse";
   }
 
@@ -114,7 +115,15 @@
       item.className = "chat-msg chat-msg-" + m.senderRole + (mine ? " is-mine" : "");
       var bubble = document.createElement("div");
       bubble.className = "chat-bubble";
-      bubble.textContent = m.content;
+      if (m.senderRole === "bot") {
+        var botLabel = document.createElement("span");
+        botLabel.className = "chat-bot-label";
+        botLabel.textContent = "Assistente AI";
+        bubble.appendChild(botLabel);
+        bubble.appendChild(document.createTextNode(m.content));
+      } else {
+        bubble.textContent = m.content;
+      }
       item.appendChild(bubble);
       var meta = document.createElement("span");
       meta.className = "chat-time";
@@ -131,8 +140,11 @@
     var isAdmin = currentUser && currentUser.isAdmin;
     if (titleEl) titleEl.textContent = partnerName();
     if (statusPill) {
-      statusPill.textContent = currentChat.closureReasonLabel ? statusLabel(currentChat.status) + " · " + currentChat.closureReasonLabel : statusLabel(currentChat.status);
-      statusPill.setAttribute("data-status", currentChat.status);
+      var statusText = currentChat.closureReasonLabel ? statusLabel(currentChat.status) + " · " + currentChat.closureReasonLabel : statusLabel(currentChat.status);
+      if (currentChat.needsAdmin && currentChat.status !== "closed") statusText = "admin richiesto";
+      else if (currentChat.aiEnabled && !isAdmin && currentChat.status !== "closed") statusText = "AI attiva";
+      statusPill.textContent = statusText;
+      statusPill.setAttribute("data-status", currentChat.needsAdmin ? "needs-admin" : currentChat.status);
     }
     if (closureBanner) {
       if (currentChat.closureReasonLabel) {
