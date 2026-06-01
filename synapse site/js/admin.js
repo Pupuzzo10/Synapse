@@ -44,6 +44,7 @@
       Object.keys(attrs).forEach(function (k) {
         if (k === "class") node.className = attrs[k];
         else if (k === "text") node.textContent = attrs[k];
+        else if (k === "html") node.innerHTML = attrs[k];
         else if (k === "value") node.value = attrs[k];
         else if (k === "checked") node.checked = !!attrs[k];
         else if (k.indexOf("on") === 0 && typeof attrs[k] === "function") node.addEventListener(k.slice(2), attrs[k]);
@@ -371,7 +372,8 @@
     return box;
   }
 
-  var presenceCache = { clients: [], total: 0, online: false };
+  var presenceCache = { clients: [], total: 0, online: false, activeIpBans: [] };
+  var ipBansCache = [];
   function timeAgo(iso) {
     if (!iso) return "—";
     var seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -385,12 +387,31 @@
     fetch(appBaseUrl + "/api/presence", { headers: authHeaders({ Accept: "application/json" }) })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (data.ok) presenceCache = data.presence || presenceCache;
+        if (data.ok) {
+          presenceCache = data.presence || presenceCache;
+          ipBansCache = presenceCache.activeIpBans || ipBansCache;
+        }
         if (typeof after === "function") after();
-        if (activeTab === "presence") renderActiveTab();
+        if (activeTab === "presence" || activeTab === "moderation") renderActiveTab();
       })
       .catch(function () { /* ignore */ });
   }
+  function loadIpBans(after) {
+    fetch(appBaseUrl + "/api/admin/moderation/ip-bans", { headers: authHeaders({ Accept: "application/json" }) })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) ipBansCache = data.bans || [];
+        if (typeof after === "function") after();
+        if (activeTab === "presence" || activeTab === "moderation") renderActiveTab();
+      })
+      .catch(function () { /* ignore */ });
+  }
+
+  function isIpBanned(ip) {
+    if (!ip) return false;
+    return (ipBansCache || []).some(function (b) { return b.ip === ip; });
+  }
+
   function accountStatusLabel(status) {
     return ({ active: "Attivo", suspended: "Sospeso", banned: "Bannato" })[status || "active"] || status;
   }
@@ -398,20 +419,25 @@
   function moderationUserAction(userId, action, banIp) {
     var labels = { suspend: "sospendere", ban: "bannare permanentemente", activate: "riattivare" };
     var reason = "";
+    var liftIp = false;
     if (action !== "activate") {
       reason = prompt("Motivo per " + labels[action] + " l'account:", action === "ban" ? "Comportamento malevolo / spam" : "Verifica amministrativa in corso");
       if (reason == null) return;
-    } else if (!confirm("Riattivare questo account?")) return;
+    } else {
+      if (!confirm("Riattivare questo account?")) return;
+      liftIp = confirm("Sbloccare anche gli IP collegati a questo account? Consigliato se era stato bannato account + IP.");
+    }
     fetch(appBaseUrl + "/api/admin/moderation/users/" + userId, {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
-      body: JSON.stringify({ action: action, reason: reason, banIp: banIp !== false }),
+      body: JSON.stringify({ action: action, reason: reason, banIp: banIp !== false, liftIp: liftIp }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (resp) {
         if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Azione non riuscita"); return; }
         loadPresence();
         loadUsers();
+        loadIpBans();
       })
       .catch(function (err) { alert("Errore: " + err.message); });
   }
@@ -432,6 +458,7 @@
       .then(function (resp) {
         if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Azione IP non riuscita"); return; }
         loadPresence();
+        loadIpBans();
       })
       .catch(function (err) { alert("Errore: " + err.message); });
   }
@@ -447,37 +474,105 @@
       }
     }
     if (ip) {
-      actions.appendChild(el("button", { type: "button", class: "btn btn-ghost" + (ipBanned ? "" : " admin-btn-danger"), text: ipBanned ? "Sblocca IP" : "Banna solo IP", onclick: function () { moderationIpAction(ip, ipBanned ? "lift" : "ban"); } }));
+      var effectiveIpBanned = ipBanned || isIpBanned(ip);
+      actions.appendChild(el("button", { type: "button", class: "btn btn-ghost" + (effectiveIpBanned ? "" : " admin-btn-danger"), text: effectiveIpBanned ? "Sblocca IP" : "Banna solo IP", onclick: function () { moderationIpAction(ip, effectiveIpBanned ? "lift" : "ban"); } }));
     }
     if (actions.childNodes.length) target.appendChild(actions);
   }
 
-  function tab_presence() {
-    var box = el("div");
+  function renderActiveIpBanList() {
+    var wrap = el("div", { class: "admin-section-card" });
     var head = el("div", { class: "admin-tickets-head" });
-    head.appendChild(el("h3", { text: "Utenti attivi in tempo reale", style: "margin:0" }));
-    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadPresence(); } }));
+    head.appendChild(el("h3", { text: "IP bannati attivi", style: "margin:0" }));
+    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica IP", onclick: function () { loadIpBans(); } }));
+    wrap.appendChild(head);
+    var list = el("div", { class: "admin-presence-list" });
+    var bans = ipBansCache || [];
+    if (!bans.length) {
+      list.appendChild(el("p", { class: "muted small", text: "Nessun IP bannato al momento." }));
+    }
+    bans.forEach(function (b) {
+      var row = el("div", { class: "admin-presence-row admin-ip-ban-row" });
+      row.appendChild(el("strong", { text: "IP bannato: " + b.ip }));
+      row.appendChild(el("span", { text: "Motivo: " + (b.reason || "—") }));
+      row.appendChild(el("span", { text: "Data: " + (b.createdAt ? new Date(b.createdAt).toLocaleString() : "—") + (b.createdByUsername ? " · Admin: " + b.createdByUsername : "") }));
+      appendModerationButtons(row, null, b.ip, true);
+      list.appendChild(row);
+    });
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function renderModerationUsersList() {
+    var wrap = el("div", { class: "admin-section-card" });
+    var head = el("div", { class: "admin-tickets-head" });
+    head.appendChild(el("h3", { text: "Account registrati", style: "margin:0" }));
+    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica utenti", onclick: function () { loadUsers(); loadPresence(); loadIpBans(); } }));
+    wrap.appendChild(head);
+    var list = el("div", { class: "admin-users-list" });
+    (usersCache || []).forEach(function (u) {
+      var row = el("div", { class: "admin-user-row admin-user-row-" + (u.accountStatus || "active") });
+      row.appendChild(el("strong", { text: u.username + (u.isAdmin ? " · Admin" : "") + " · " + accountStatusLabel(u.accountStatus) }));
+      row.appendChild(el("span", { text: u.email }));
+      row.appendChild(el("span", { text: "IP registrazione: " + (u.registerIp || "—") + " · ultimo IP: " + (u.lastIp || "—") + (isIpBanned(u.lastIp || u.registerIp) ? " · IP BANNATO" : "") }));
+      if (u.accountStatusReason) row.appendChild(el("span", { class: "admin-warning-text", text: "Motivo: " + u.accountStatusReason }));
+      row.appendChild(el("span", { text: "Creato: " + (u.createdAt ? new Date(u.createdAt).toLocaleString() : "—") + " · Ultima attività: " + timeAgo(u.lastSeenAt) }));
+      appendModerationButtons(row, u, u.lastIp || u.registerIp, isIpBanned(u.lastIp || u.registerIp));
+      list.appendChild(row);
+    });
+    if (!usersCache.length) {
+      list.appendChild(el("p", { class: "muted small", text: "Caricamento account..." }));
+      loadUsers();
+    }
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function tab_presence() {
+    var box = el("div", { class: "admin-dashboard" });
+    var head = el("div", { class: "admin-page-head" });
+    head.appendChild(el("div", { html: "<h3>Presenza live</h3><p class='muted small'>Monitoraggio connessioni, IP reali ricevuti dal proxy Render e possibili multi-account.</p>" }));
+    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica tutto", onclick: function () { loadPresence(); loadUsers(); loadIpBans(); } }));
     box.appendChild(head);
-    box.appendChild(el("p", { class: "muted small", text: "Connessioni attive: " + (presenceCache.total || 0) + " · Admin online: " + (presenceCache.online ? "sì" : "no") + " · IP tracciati per anti-abuso" }));
+    var stats = el("div", { class: "admin-stat-grid" });
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + (presenceCache.total || 0) + "</strong><span>Connessioni attive</span>" }));
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + (presenceCache.online ? "Sì" : "No") + "</strong><span>Admin online</span>" }));
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + ((ipBansCache || []).length) + "</strong><span>IP bannati</span>" }));
+    box.appendChild(stats);
+    var live = el("div", { class: "admin-section-card" });
+    live.appendChild(el("h3", { text: "Connessioni attive" }));
     var list = el("div", { class: "admin-presence-list" });
     (presenceCache.clients || []).forEach(function (c) {
       var linked = c.linkedAccounts || [];
       var currentAccount = linked.find(function (u) { return u.id === c.userId; }) || (c.userId ? { id: c.userId, username: c.username, email: c.email, isAdmin: c.isAdmin, accountStatus: "active" } : null);
-      var row = el("div", { class: "admin-presence-row" });
+      var row = el("div", { class: "admin-presence-row" + (linked.length > 1 ? " has-warning" : "") });
       row.appendChild(el("strong", { text: (c.username || "Visitatore") + (c.isAdmin ? " · Admin" : "") + " · " + accountStatusLabel(currentAccount && currentAccount.accountStatus) }));
-      row.appendChild(el("span", { text: c.email || (c.userId ? "Account #" + c.userId : "Non registrato") }));
-      row.appendChild(el("span", { text: "IP: " + (c.ip || "non rilevato") + (c.ipBanned ? " · BANNATO" : "") }));
+      row.appendChild(el("span", { text: c.email || (c.userId ? "Account #" + c.userId : "Visitatore non registrato") }));
+      row.appendChild(el("span", { text: "IP connessione: " + (c.ip || "non rilevato") + (c.ipBanned || isIpBanned(c.ip) ? " · IP BANNATO" : "") }));
       row.appendChild(el("span", { text: "Stesso IP online: " + (c.ipSharedOnlineCount || 0) + " · Account collegati: " + linked.length }));
       if (linked.length > 1) {
         row.appendChild(el("span", { class: "admin-warning-text", text: "Possibile multi-account: " + linked.map(function (u) { return (u.username || u.email) + " (" + accountStatusLabel(u.accountStatus) + ")"; }).join(", ") }));
       }
       row.appendChild(el("span", { text: "Sezione: " + (c.page || "Sito") }));
-      row.appendChild(el("span", { text: "Ultima attività: " + timeAgo(c.lastSeenAt) }));
-      appendModerationButtons(row, currentAccount, c.ip, c.ipBanned);
+      row.appendChild(el("span", { text: "Ultima attività: " + timeAgo(c.lastSeenAt) + " · Connesso: " + timeAgo(c.connectedAt) }));
+      appendModerationButtons(row, currentAccount, c.ip, c.ipBanned || isIpBanned(c.ip));
       list.appendChild(row);
     });
     if (!(presenceCache.clients || []).length) list.appendChild(el("p", { class: "muted small", text: "Nessuna connessione rilevata." }));
-    box.appendChild(list);
+    live.appendChild(list);
+    box.appendChild(live);
+    box.appendChild(renderActiveIpBanList());
+    return box;
+  }
+
+  function tab_moderation() {
+    var box = el("div", { class: "admin-dashboard" });
+    var head = el("div", { class: "admin-page-head" });
+    head.appendChild(el("div", { html: "<h3>Moderazione</h3><p class='muted small'>Da qui puoi sospendere, bannare, riattivare account e sbloccare IP anche quando l'utente non è più online.</p>" }));
+    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadUsers(); loadIpBans(); loadPresence(); } }));
+    box.appendChild(head);
+    box.appendChild(renderModerationUsersList());
+    box.appendChild(renderActiveIpBanList());
     return box;
   }
 
@@ -488,7 +583,7 @@
       .then(function (data) {
         if (data.ok) usersCache = data.users || [];
         if (typeof after === "function") after();
-        if (activeTab === "adminAccounts" || activeTab === "presence") renderActiveTab();
+        if (activeTab === "adminAccounts" || activeTab === "presence" || activeTab === "moderation") renderActiveTab();
       })
       .catch(function () { /* ignore */ });
   }
@@ -521,7 +616,7 @@
       row.appendChild(el("span", { text: "IP registrazione: " + (u.registerIp || "—") + " · ultimo IP: " + (u.lastIp || "—") }));
       if (u.accountStatusReason) row.appendChild(el("span", { class: "admin-warning-text", text: "Motivo: " + u.accountStatusReason }));
       row.appendChild(el("span", { text: "Creato: " + new Date(u.createdAt).toLocaleString() }));
-      appendModerationButtons(row, u, u.lastIp || u.registerIp, false);
+      appendModerationButtons(row, u, u.lastIp || u.registerIp, isIpBanned(u.lastIp || u.registerIp));
       list.appendChild(row);
     });
     if (!usersCache.length) {
@@ -652,7 +747,8 @@
     { id: "promotions", label: "Promozioni", render: tab_promotions },
     { id: "tickets", label: "Segnalazioni", render: tab_tickets },
     { id: "presence", label: "Presenza live", render: tab_presence },
-    { id: "adminAccounts", label: "Account admin", render: tab_adminAccounts },
+    { id: "moderation", label: "Moderazione", render: tab_moderation },
+    { id: "adminAccounts", label: "Utenti / Admin", render: tab_adminAccounts },
     { id: "status", label: "Stato servizio", render: tab_status },
   ];
 
@@ -737,7 +833,7 @@
   document.addEventListener("synapse:auth-changed", function (ev) {
     var user = ev.detail && ev.detail.user;
     if (openBtn) openBtn.hidden = !(user && user.isAdmin);
-    if (user && user.isAdmin) { loadTickets(); loadPresence(); loadUsers(); }
+    if (user && user.isAdmin) { loadTickets(); loadPresence(); loadUsers(); loadIpBans(); }
   });
 
   // Aggiornamenti realtime dei ticket per l'admin
@@ -747,7 +843,8 @@
 
   document.addEventListener("synapse:presence", function (ev) {
     presenceCache = ev.detail || presenceCache;
-    if (activeTab === "presence") renderActiveTab();
+    ipBansCache = presenceCache.activeIpBans || ipBansCache;
+    if (activeTab === "presence" || activeTab === "moderation") renderActiveTab();
   });
 
   document.addEventListener("synapse:users-changed", function () {
@@ -758,5 +855,6 @@
   document.addEventListener("synapse:moderation-changed", function () {
     loadUsers();
     loadPresence();
+    loadIpBans();
   });
 })();

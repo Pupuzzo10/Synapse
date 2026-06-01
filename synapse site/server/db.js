@@ -241,6 +241,13 @@ function ensureDatabase(dbPath) {
     findActiveIpBan: db.prepare(`
       SELECT * FROM ip_bans WHERE ip = ? AND active = 1
     `),
+    listActiveIpBans: db.prepare(`
+      SELECT b.*, u.username AS created_by_username
+      FROM ip_bans b
+      LEFT JOIN users u ON u.id = b.created_by
+      WHERE b.active = 1
+      ORDER BY b.updated_at DESC, b.created_at DESC
+    `),
     upsertIpBan: db.prepare(`
       INSERT INTO ip_bans (ip, reason, active, created_by, created_at, updated_at, lifted_at, lifted_by)
       VALUES (@ip, @reason, 1, @created_by, @created_at, @updated_at, NULL, NULL)
@@ -545,6 +552,26 @@ function ensureDatabase(dbPath) {
     return statements.findActiveIpBan.get(ip) || null;
   }
 
+  function serializeIpBan(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      ip: row.ip,
+      reason: row.reason || null,
+      active: !!row.active,
+      createdBy: row.created_by || null,
+      createdByUsername: row.created_by_username || null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      liftedAt: row.lifted_at || null,
+      liftedBy: row.lifted_by || null,
+    };
+  }
+
+  function listActiveIpBans() {
+    return statements.listActiveIpBans.all().map(serializeIpBan);
+  }
+
   function banIp(ip, reason, adminId) {
     if (!ip) throw new Error("IP non valido");
     const now = nowIso();
@@ -613,6 +640,7 @@ function ensureDatabase(dbPath) {
     updateUserIp,
     findUsersByIp,
     findActiveIpBan,
+    listActiveIpBans,
     banIp,
     liftIpBan,
     getSetting,

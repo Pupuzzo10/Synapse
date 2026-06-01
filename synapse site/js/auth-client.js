@@ -74,6 +74,41 @@
     }
   }
 
+  function renderBlockedScreen(block) {
+    block = block || {};
+    var status = block.status === "suspended" ? "sospeso" : "bannato";
+    var title = block.title || (status === "sospeso" ? "Account sospeso" : "Accesso bloccato");
+    var message = block.message || "Non puoi usare questo sito.";
+    try { if (window.SynapseContent && window.SynapseContent.closeEvents) window.SynapseContent.closeEvents(); } catch (_e) { /* ignore */ }
+    document.title = title + " — Synapse";
+    document.body.className = "blocked-page-body";
+    document.body.innerHTML = "";
+    var page = document.createElement("main");
+    page.className = "blocked-page";
+    var card = document.createElement("section");
+    card.className = "blocked-page-card";
+    var icon = document.createElement("div");
+    icon.className = "blocked-page-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = status === "sospeso" ? "⏸" : "⚠";
+    var kicker = document.createElement("p");
+    kicker.className = "blocked-page-kicker";
+    kicker.textContent = status === "sospeso" ? "Account sospeso" : "Account bannato";
+    var h = document.createElement("h1");
+    h.textContent = title;
+    var p = document.createElement("p");
+    p.className = "blocked-page-message";
+    p.textContent = message;
+    var note = document.createElement("p");
+    note.className = "blocked-page-note";
+    note.textContent = "Non puoi navigare, inviare segnalazioni, usare la chat o accedere alle API finché il provvedimento resta attivo.";
+    card.appendChild(icon); card.appendChild(kicker); card.appendChild(h); card.appendChild(p); card.appendChild(note);
+    page.appendChild(card);
+    document.body.appendChild(page);
+  }
+
+  window.SynapseBlocked = window.SynapseBlocked || { render: renderBlockedScreen };
+
   function clearMessages() {
     setMessage(document.getElementById("auth-message-login"), "");
     setMessage(document.getElementById("auth-message-register"), "");
@@ -197,6 +232,9 @@
     });
 
     if (!response.ok) {
+      if (payload && payload.blocked && payload.block && window.SynapseBlocked) {
+        window.SynapseBlocked.render(payload.block);
+      }
       var error = new Error(payload.message || "Richiesta non riuscita.");
       error.payload = payload;
       error.status = response.status;
@@ -251,7 +289,11 @@
       throw makeTransportError("il controllo della sessione");
     }
 
-    var data = await response.json();
+    var data = await response.json().catch(function () { return { ok: false, message: "Risposta sessione non valida." }; });
+    if (!response.ok && data && data.blocked && data.block && window.SynapseBlocked) {
+      window.SynapseBlocked.render(data.block);
+      return data;
+    }
     updateNav(data.user || null);
     return data;
   }

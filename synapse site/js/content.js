@@ -399,12 +399,12 @@
   }
 
   var currentEventSource = null;
+  function closeEvents() {
+    closeEvents();
+  }
   function connectEvents() {
     if (typeof EventSource === "undefined") return;
-    if (currentEventSource) {
-      try { currentEventSource.close(); } catch (_e) { /* ignore */ }
-      currentEventSource = null;
-    }
+    closeEvents();
     var src;
     try {
       // SSE non supporta header custom: passiamo sessionId come query param
@@ -462,11 +462,18 @@
         document.dispatchEvent(new CustomEvent("synapse:users-changed", { detail: payload }));
       } catch (_e) { /* ignore */ }
     });
+    src.addEventListener("moderation:list-update", function (ev) {
+      try {
+        var payload = JSON.parse(ev.data);
+        document.dispatchEvent(new CustomEvent("synapse:moderation-changed", { detail: payload }));
+      } catch (_e) { /* ignore */ }
+    });
     src.addEventListener("moderation:update", function (ev) {
       try {
         var payload = JSON.parse(ev.data);
         if (payload && payload.block) {
-          window.location.reload();
+          if (window.SynapseBlocked && window.SynapseBlocked.render) window.SynapseBlocked.render(payload.block);
+          else window.location.href = "/";
         } else {
           document.dispatchEvent(new CustomEvent("synapse:moderation-changed", { detail: payload }));
         }
@@ -474,7 +481,7 @@
     });
   }
 
-  window.SynapseContent = { reload: loadAll };
+  window.SynapseContent = { reload: loadAll, closeEvents: closeEvents };
   loadAll()
     .then(function () { connectEvents(); })
     .catch(function (err) {

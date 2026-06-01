@@ -1764,3 +1764,250 @@ main {
 .admin-user-row span {
   overflow-wrap: anywhere;
 }
+
+/* === Correzione header: niente più nav che scende dopo il login === */
+.header-inner { gap: 1rem; }
+.logo--with-cat { flex: 0 0 auto; }
+.nav {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 0.35rem 0.85rem;
+}
+.nav a,
+.nav-report-btn,
+.nav-auth-open,
+.nav-admin-open,
+.nav-auth-logout,
+.nav-cta {
+  white-space: nowrap;
+}
+.nav-user:not([hidden]) {
+  max-width: 210px;
+  flex: 0 1 auto;
+}
+.nav-user-label { max-width: 5.75rem; }
+
+@media (max-width: 1180px) {
+  .nav-toggle { display: flex; }
+  .nav {
+    position: absolute;
+    top: var(--header-h);
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem 1.25rem 1.25rem;
+    background: rgba(10, 10, 10, 0.98);
+    border-bottom: 1px solid var(--border);
+    gap: 0.5rem;
+    display: none;
+  }
+  .nav.is-open { display: flex; }
+  .nav a { padding: 0.6rem 0; }
+  .nav-cta { text-align: center; margin-top: 0.25rem; }
+  .nav-auth-wrap { width: 100%; justify-content: flex-start; padding: 0.35rem 0; }
+  .nav-user:not([hidden]) { max-width: 100%; }
+  .nav-user-label { max-width: min(10rem, 52vw); }
+}
+
+/* === Schermata bannato/sospeso lato client === */
+.blocked-page-body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(239,68,68,0.22), transparent 32rem),
+    radial-gradient(circle at 0% 100%, rgba(255,255,255,0.08), transparent 28rem),
+    #050505;
+  color: var(--text, #f5f5f5);
+  font-family: Outfit, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.blocked-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+.blocked-page-card {
+  width: min(680px, 100%);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(18,18,18,0.96), rgba(7,7,7,0.96));
+  box-shadow: 0 30px 100px rgba(0,0,0,0.55);
+  text-align: center;
+}
+.blocked-page-icon {
+  width: 5rem;
+  height: 5rem;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 1.15rem;
+  border-radius: 1.6rem;
+  background: rgba(239,68,68,0.12);
+  border: 1px solid rgba(239,68,68,0.35);
+  font-size: 2.4rem;
+}
+.blocked-page-kicker {
+  display: inline-flex;
+  margin: 0 0 0.85rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: #f2b8b5;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.blocked-page-card h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2.25rem, 7vw, 4.8rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+.blocked-page-message {
+  margin: 0 auto;
+  max-width: 52ch;
+  color: rgba(245,245,245,0.82);
+  line-height: 1.7;
+  font-size: 1.05rem;
+}
+.blocked-page-note {
+  margin: 1.4rem auto 0;
+  max-width: 52ch;
+  color: rgba(245,245,245,0.52);
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+/* === Admin NUI: leggibilità, struttura, moderazione === */
+.admin-modal .modal-dialog.admin-dialog {
+  max-width: 1220px;
+  width: min(98vw, 1220px);
+  border-radius: 24px;
+  overflow: hidden;
+}
+.admin-layout {
+  grid-template-columns: 235px minmax(0, 1fr);
+  background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(0,0,0,0.22));
+}
+.admin-tabs-nav {
+  gap: 0.28rem;
+  background: rgba(0,0,0,0.35);
+}
+.admin-tab {
+  border: 1px solid transparent;
+  padding: 0.68rem 0.8rem;
+  line-height: 1.1;
+}
+.admin-tab.is-active {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.12);
+  box-shadow: inset 3px 0 0 rgba(255,255,255,0.72);
+}
+.admin-tab-body {
+  padding: 1.35rem;
+  background: rgba(255,255,255,0.015);
+}
+.admin-actions {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.admin-dashboard {
+  display: grid;
+  gap: 1rem;
+}
+.admin-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.035);
+}
+.admin-page-head h3,
+.admin-section-card h3 {
+  margin: 0;
+}
+.admin-page-head p {
+  margin: 0.35rem 0 0;
+}
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.admin-stat-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.045);
+}
+.admin-stat-card strong {
+  display: block;
+  font-size: clamp(1.6rem, 4vw, 2.25rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+.admin-stat-card span {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.admin-section-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.028);
+}
+.admin-presence-row,
+.admin-user-row {
+  gap: 0.42rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.045);
+}
+.admin-presence-row.has-warning,
+.admin-user-row-banned,
+.admin-ip-ban-row {
+  border-color: rgba(239,68,68,0.42);
+  background: linear-gradient(180deg, rgba(239,68,68,0.08), rgba(255,255,255,0.025));
+}
+.admin-user-row-suspended {
+  border-color: rgba(245,158,11,0.42);
+  background: linear-gradient(180deg, rgba(245,158,11,0.075), rgba(255,255,255,0.025));
+}
+.admin-presence-row strong,
+.admin-user-row strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+.admin-presence-row span,
+.admin-user-row span {
+  color: rgba(245,245,245,0.72);
+  line-height: 1.45;
+}
+.admin-warning-text {
+  color: #fca5a5 !important;
+  font-weight: 650;
+}
+.admin-moderation-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+.admin-moderation-actions .btn {
+  padding: 0.42rem 0.72rem;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 760px) {
+  .admin-modal .modal-dialog.admin-dialog { width: min(98vw, 98vw); }
+  .admin-layout { grid-template-columns: 1fr; }
+  .admin-stat-grid { grid-template-columns: 1fr; }
+  .admin-page-head { flex-direction: column; }
+}

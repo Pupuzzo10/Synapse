@@ -62,15 +62,53 @@ function escapeHtml(value) {
 
 function normalizeIp(value) {
   if (!value) return null;
-  let ip = String(value).split(",")[0].trim();
+  let ip = String(value).trim();
   if (!ip) return null;
+  // x-forwarded-for puo' contenere piu' IP separati da virgole: qui si normalizza un singolo candidato.
+  ip = ip.replace(/^for=/i, "").replace(/^\"|\"$/g, "");
+  if (ip.startsWith("[")) ip = ip.slice(1, ip.indexOf("]") > -1 ? ip.indexOf("]") : undefined);
   if (ip.startsWith("::ffff:")) ip = ip.slice(7);
   if (ip === "::1") ip = "127.0.0.1";
+  // Rimuove porta IPv4 accidentale, es. 1.2.3.4:12345.
+  if (/^\d+\.\d+\.\d+\.\d+:\d+$/.test(ip)) ip = ip.replace(/:\d+$/, "");
   return ip.slice(0, 80);
 }
 
+function isPrivateIp(ip) {
+  if (!ip) return false;
+  if (ip === "127.0.0.1" || ip === "localhost") return true;
+  if (/^(10|127)\./.test(ip)) return true;
+  if (/^192\.168\./.test(ip)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)) return true;
+  if (/^(fc|fd|fe80):/i.test(ip)) return true;
+  return false;
+}
+
+function headerCandidates(req) {
+  const out = [];
+  ["cf-connecting-ip", "true-client-ip", "x-real-ip", "fly-client-ip"].forEach(function (name) {
+    const value = req.get(name);
+    if (value) out.push(value);
+  });
+  const xff = req.get("x-forwarded-for");
+  if (xff) String(xff).split(",").forEach(function (part) { out.push(part); });
+  const forwarded = req.get("forwarded");
+  if (forwarded) {
+    String(forwarded).split(/[;,]/).forEach(function (part) {
+      const m = part.match(/for=([^;]+)/i);
+      if (m) out.push(m[1]);
+    });
+  }
+  out.push(req.ip);
+  if (req.socket && req.socket.remoteAddress) out.push(req.socket.remoteAddress);
+  return out.map(normalizeIp).filter(Boolean);
+}
+
 function getClientIp(req) {
-  return normalizeIp(req.ip || req.get("x-forwarded-for") || req.socket && req.socket.remoteAddress);
+  const candidates = headerCandidates(req);
+  if (!candidates.length) return null;
+  // Su Render/proxy l'IP reale arriva dagli header. Preferiamo il primo IP pubblico.
+  return candidates.find(function (ip) { return !isPrivateIp(ip); }) || candidates[0];
 }
 
 function isBlockedUser(user) {
@@ -114,15 +152,17 @@ function sendBlockedHtml(res, block) {
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 2rem; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(circle at top, #202020, #050505 65%); color: #f5f5f5; }
-    .blocked-card { width: min(560px, 100%); border: 1px solid rgba(255,255,255,.14); background: rgba(15,15,15,.88); border-radius: 24px; padding: 2rem; box-shadow: 0 24px 80px rgba(0,0,0,.45); text-align: center; }
-    .blocked-kicker { display: inline-flex; align-items: center; gap: .5rem; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: .45rem .8rem; color: #f2b8b5; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: .75rem; }
-    h1 { margin: 1.2rem 0 .7rem; font-size: clamp(2rem, 7vw, 4rem); line-height: .95; }
+    .blocked-card { width: min(620px, 100%); border: 1px solid rgba(255,255,255,.16); background: linear-gradient(180deg, rgba(18,18,18,.96), rgba(7,7,7,.96)); border-radius: 30px; padding: clamp(1.5rem, 4vw, 3rem); box-shadow: 0 30px 100px rgba(0,0,0,.55); text-align: center; }
+    .blocked-icon { width: 5rem; height: 5rem; display: grid; place-items: center; margin: 0 auto 1.15rem; border-radius: 1.6rem; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); font-size: 2.4rem; }
+    .blocked-kicker { display: inline-flex; align-items: center; gap: .5rem; border: 1px solid rgba(255,255,255,.14); border-radius: 999px; padding: .45rem .8rem; color: #f2b8b5; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: .75rem; }
+    h1 { margin: 1.2rem 0 .7rem; font-size: clamp(2.25rem, 7vw, 4.8rem); line-height: .95; letter-spacing: -.05em; }
     p { margin: 0; color: #cfcfcf; line-height: 1.65; }
     .blocked-note { margin-top: 1.2rem; font-size: .9rem; color: #8f8f8f; }
   </style>
 </head>
 <body>
   <main class="blocked-card" role="main" aria-live="polite">
+    <div class="blocked-icon" aria-hidden="true">⚠</div>
     <div class="blocked-kicker">Accesso negato</div>
     <h1>${title}</h1>
     <p>${message}</p>
@@ -503,6 +543,7 @@ function createApp(overrides = {}) {
       byIp[client.ip] = (byIp[client.ip] || 0) + 1;
     });
     return Object.assign({}, snapshot, {
+      activeIpBans: authDb.listActiveIpBans ? authDb.listActiveIpBans() : [],
       clients: (snapshot.clients || []).map(function (client) {
         const linkedAccounts = client.ip ? authDb.findUsersByIp(client.ip).map(serializeUser) : [];
         return Object.assign({}, client, {
@@ -752,6 +793,7 @@ function createApp(overrides = {}) {
     const action = req.body && typeof req.body.action === "string" ? req.body.action : "";
     const reason = req.body && typeof req.body.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
     const banIp = !(req.body && req.body.banIp === false);
+    const liftIp = !!(req.body && req.body.liftIp);
     if (!targetId) return res.status(400).json({ ok: false, message: "Utente non valido." });
     if (targetId === req.currentUser.id && action !== "activate") {
       return res.status(400).json({ ok: false, message: "Non puoi sospendere o bannare il tuo stesso account." });
@@ -774,13 +816,22 @@ function createApp(overrides = {}) {
           }
         });
       }
+      if (action === "activate" && liftIp) {
+        [target.last_ip, target.register_ip].forEach(function (ip) {
+          if (ip && ips.indexOf(ip) === -1) {
+            authDb.liftIpBan(ip, req.currentUser.id);
+            ips.push(ip);
+          }
+        });
+      }
       const block = status === "active" ? null : blockInfoFromUser(user);
       const serializedUser = serializeUser(user);
       broadcaster.broadcast("moderation:update", { user: serializedUser, block }, { userIds: [targetId] });
       if (ips.length) broadcaster.broadcast("moderation:update", { user: serializedUser, block }, { ips });
       broadcaster.broadcast("users:update", { user: serializedUser }, { userIds: adminUserIds() });
+      broadcaster.broadcast("moderation:list-update", { user: serializedUser, ips }, { userIds: adminUserIds() });
       broadcastAdminPresence();
-      res.json({ ok: true, user: serializedUser, bannedIps: ips });
+      res.json({ ok: true, user: serializedUser, affectedIps: ips });
     } catch (error) {
       res.status(400).json({ ok: false, message: error.message });
     }
@@ -799,14 +850,21 @@ function createApp(overrides = {}) {
       } else if (action === "lift") {
         authDb.liftIpBan(ip, req.currentUser.id);
         ipBan = null;
+        broadcaster.broadcast("moderation:update", { block: null, ip }, { ips: [ip] });
       } else {
         return res.status(400).json({ ok: false, message: "Azione IP non valida." });
       }
+      broadcaster.broadcast("moderation:list-update", { ip, ipBan }, { userIds: adminUserIds() });
       broadcastAdminPresence();
       res.json({ ok: true, ip, ipBan });
     } catch (error) {
       res.status(400).json({ ok: false, message: error.message });
     }
+  });
+
+
+  app.get("/api/admin/moderation/ip-bans", requireAdmin, function (req, res) {
+    res.json({ ok: true, bans: authDb.listActiveIpBans ? authDb.listActiveIpBans() : [] });
   });
 
   app.get("/api/admin/users", requireAdmin, function (req, res) {

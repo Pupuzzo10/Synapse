@@ -262,14 +262,16 @@
     }
   });
 
-  // Aggiornamenti realtime sui propri ticket
-  document.addEventListener("synapse:ticket-mine", function (ev) {
-    var t = ev.detail && ev.detail.ticket;
+  function upsertMineTicket(t) {
     if (!t) return;
     var idx = myTickets.findIndex(function (x) { return x.id === t.id; });
     if (idx >= 0) myTickets[idx] = t; else myTickets.unshift(t);
     renderMine();
-  });
+  }
+
+  // Aggiornamenti realtime sui propri ticket: nuova segnalazione, risposta admin, cambio stato, apertura chat.
+  document.addEventListener("synapse:ticket-mine", function (ev) { upsertMineTicket(ev.detail && ev.detail.ticket); });
+  document.addEventListener("synapse:ticket-update", function (ev) { upsertMineTicket(ev.detail && ev.detail.ticket); });
 
   // Quando l'admin apre una chat per l'utente o aggiorna una chat
   document.addEventListener("synapse:chat-available", function () { refreshMyChats(); });
