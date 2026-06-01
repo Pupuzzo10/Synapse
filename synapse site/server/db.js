@@ -123,6 +123,32 @@ function ensureDatabase(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets (user_id);
     CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets (status);
 
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      customer_name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      discord_username TEXT,
+      product_category TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      price_label TEXT NOT NULL,
+      payment_method TEXT NOT NULL DEFAULT 'Revolut',
+      payment_link TEXT NOT NULL,
+      payment_status TEXT NOT NULL DEFAULT 'awaiting_revolut',
+      service_details TEXT,
+      status TEXT NOT NULL DEFAULT 'awaiting_payment',
+      ip TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      paid_marked_at TEXT,
+      details_submitted_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders (user_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
+
     CREATE TABLE IF NOT EXISTS chats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ticket_id INTEGER NOT NULL,
@@ -216,6 +242,24 @@ function ensureDatabase(dbPath) {
   }
   if (!hasTicketColumn("product_name")) {
     db.exec("ALTER TABLE tickets ADD COLUMN product_name TEXT");
+  }
+
+  const orderColumns = db.prepare("PRAGMA table_info(orders)").all();
+  function hasOrderColumn(name) { return orderColumns.some(function (c) { return c.name === name; }); }
+  if (!hasOrderColumn("discord_username")) {
+    db.exec("ALTER TABLE orders ADD COLUMN discord_username TEXT");
+  }
+  if (!hasOrderColumn("payment_status")) {
+    db.exec("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'awaiting_revolut'");
+  }
+  if (!hasOrderColumn("service_details")) {
+    db.exec("ALTER TABLE orders ADD COLUMN service_details TEXT");
+  }
+  if (!hasOrderColumn("paid_marked_at")) {
+    db.exec("ALTER TABLE orders ADD COLUMN paid_marked_at TEXT");
+  }
+  if (!hasOrderColumn("details_submitted_at")) {
+    db.exec("ALTER TABLE orders ADD COLUMN details_submitted_at TEXT");
   }
 
   // Coerenza dati: se una chat è chiusa, anche il ticket collegato deve risultare chiuso.

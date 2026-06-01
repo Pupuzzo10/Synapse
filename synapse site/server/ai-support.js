@@ -33,6 +33,7 @@ function buildSiteContext(content, status) {
   lines.push("Nome progetto: Synapse.");
   lines.push("Synapse vende e presenta servizi digitali: bot Discord, hosting, loghi, accesso al codice sorgente, siti web professionali, servizi custom e supporto tramite ticket/chat.");
   lines.push("Regola rimborsi: dopo conferma/inizio lavorazione non è previsto rimborso automatico; viene offerta assistenza continuativa per avvicinare il prodotto alla richiesta iniziale.");
+  lines.push("Metodo pagamento disponibile: esclusivamente Revolut tramite checkout Synapse e link ufficiale https://revolut.me/angelo2tqp. Synapse non acquisisce dati carta.");
   if (status.server || status.service || status.message) {
     lines.push("Stato pubblico: server=" + (status.server || "n/d") + ", servizio=" + (status.service || "n/d") + (status.message ? ", messaggio=" + status.message : ""));
   }

@@ -737,6 +737,67 @@
     return box;
   }
 
+  var ordersCache = [];
+  function orderStatusLabel(s) {
+    return ({ awaiting_payment: "In attesa pagamento", payment_confirmed: "Pagamento confermato", details_received: "Dettagli ricevuti", completed: "Completato" })[s] || s;
+  }
+
+  function paymentStatusLabel(s) {
+    return ({ awaiting_revolut: "In attesa Revolut", customer_confirmed: "Confermato dal cliente", verified: "Verificato" })[s] || s;
+  }
+
+  function loadOrders(after) {
+    fetch(appBaseUrl + "/api/orders", { headers: authHeaders({ Accept: "application/json" }) })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) {
+          ordersCache = data.orders || [];
+          if (typeof after === "function") after();
+          if (activeTab === "orders") renderActiveTab();
+        }
+      });
+  }
+
+  function tab_orders() {
+    var box = el("div");
+    var head = el("div", { class: "admin-tickets-head" });
+    head.appendChild(el("h3", { text: "Ordini checkout", style: "margin:0" }));
+    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadOrders(); } }));
+    box.appendChild(head);
+
+    if (!ordersCache.length) {
+      box.appendChild(el("p", { class: "muted small", text: "Nessun ordine ricevuto. Caricamento..." }));
+      loadOrders();
+      return box;
+    }
+
+    ordersCache.forEach(function (o) {
+      var card = el("div", { class: "admin-ticket admin-ticket-" + (o.status === "details_received" ? "approved" : "pending") });
+      var header = el("div", { class: "admin-ticket-head" });
+      header.appendChild(el("span", { class: "report-pill report-pill-" + (o.status === "details_received" ? "approved" : "pending"), text: orderStatusLabel(o.status) }));
+      header.appendChild(el("span", { class: "admin-ticket-meta", text: "#" + o.id + " · " + (o.username || "Utente " + o.userId) + " · " + o.email + " · " + new Date(o.createdAt).toLocaleString() }));
+      card.appendChild(header);
+      var lines = [
+        "Cliente: " + o.customerName,
+        "Telefono: " + o.phone,
+        "Discord: " + (o.discordUsername || "Non indicato"),
+        "Prodotto: " + o.productCategory + " · " + o.productName,
+        "Importo: " + o.priceLabel,
+        "Pagamento: " + o.paymentMethod + " · " + paymentStatusLabel(o.paymentStatus),
+        "Contatto successivo: WhatsApp o Discord",
+      ];
+      card.appendChild(el("p", { class: "admin-ticket-msg", text: lines.join("\n") }));
+      if (o.serviceDetails) {
+        var details = el("p", { class: "admin-ticket-reply" });
+        details.appendChild(el("strong", { text: "Dettagli servizio: " }));
+        details.appendChild(document.createTextNode(o.serviceDetails));
+        card.appendChild(details);
+      }
+      box.appendChild(card);
+    });
+    return box;
+  }
+
 
   // === TAB CHAT LIVE ===
   var chatsCache = [];
@@ -838,6 +899,7 @@
     { id: "notes", label: "Note", render: tab_notes },
     { id: "promotions", label: "Promozioni", render: tab_promotions },
     { id: "tickets", label: "Ticket", render: tab_tickets },
+    { id: "orders", label: "Ordini", render: tab_orders },
     { id: "chats", label: "Chat live", render: tab_chats },
     { id: "presence", label: "Presenza live", render: tab_presence },
     { id: "moderation", label: "Moderazione", render: tab_moderation },
@@ -953,13 +1015,17 @@
   document.addEventListener("synapse:auth-changed", function (ev) {
     var user = ev.detail && ev.detail.user;
     if (openBtn) openBtn.hidden = !(user && user.isAdmin);
-    if (user && user.isAdmin) { loadTickets(); loadChats(); loadPresence(); loadUsers(); loadIpBans(); }
+    if (user && user.isAdmin) { loadTickets(); loadOrders(); loadChats(); loadPresence(); loadUsers(); loadIpBans(); }
   });
 
   // Aggiornamenti realtime dei ticket per l'admin
   document.addEventListener("synapse:tickets-changed", function () {
     loadTickets();
     loadChats();
+  });
+
+  document.addEventListener("synapse:orders-changed", function () {
+    loadOrders();
   });
 
   document.addEventListener("synapse:chat-event", function () {
@@ -988,6 +1054,7 @@
     var adminOpen = openBtn && !openBtn.hidden;
     if (!adminOpen) return;
     if (activeTab === "tickets") { loadTickets(); loadChats(); }
+    else if (activeTab === "orders") { loadOrders(); }
     else if (activeTab === "chats") { loadChats(); loadTickets(); }
     else if (activeTab === "presence" || activeTab === "moderation") { loadPresence(); loadUsers(); loadIpBans(); }
     else if (activeTab === "adminAccounts") { loadUsers(); }

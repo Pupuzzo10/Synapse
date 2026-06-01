@@ -14,7 +14,10 @@ const { createSessionMiddleware, requireCsrf } = require("./session-store");
 const adminOps = require("./admin-ops");
 const { createBroadcaster } = require("./events");
 const { createSupport } = require("./support");
+const { createOrders } = require("./orders");
 const { answerSupportQuestion } = require("./ai-support");
+
+const REVOLUT_PAYMENT_LINK = "https://revolut.me/angelo2tqp";
 
 function serializeUser(user) {
   return {
@@ -259,6 +262,12 @@ function createApp(overrides = {}) {
     windowMs: 10 * 60 * 1000,
     limit: 8,
     message: "Troppi ticket inviati. Riprova tra qualche minuto.",
+  });
+
+  const orderLimiter = buildRateLimiter({
+    windowMs: 10 * 60 * 1000,
+    limit: 8,
+    message: "Troppi ordini inviati. Riprova tra qualche minuto.",
   });
 
   const chatMessageLimiter = buildRateLimiter({
@@ -511,6 +520,7 @@ function createApp(overrides = {}) {
   adminOps.seedContent(authDb);
   const broadcaster = createBroadcaster();
   const support = createSupport(authDb);
+  const orders = createOrders(authDb);
 
   app.get("/api/events", function (req, res) {
     const accountBlock = blockInfoFromUser(req.sessionUser);
@@ -618,6 +628,99 @@ function createApp(overrides = {}) {
     if (preferredId && ids.indexOf(preferredId) !== -1) return preferredId;
     return ids.length ? ids[0] : null;
   }
+
+  function normalizeOrderText(value, max) {
+    return String(value == null ? "" : value).trim().slice(0, max);
+  }
+
+  function rejectCardPayload(body) {
+    body = body || {};
+    return ["cardNumber", "cardCvv", "cardCvc", "cvv", "cvc", "expiry", "cardExpiry", "cardHolder", "paymentDetails"].some(function (key) {
+      return Object.prototype.hasOwnProperty.call(body, key);
+    });
+  }
+
+  function canReadOrder(user, order) {
+    return !!(user && order && (user.is_admin || order.userId === user.id));
+  }
+
+  function orderAudience(order) {
+    return adminUserIds().concat([order.userId]);
+  }
+
+  app.post("/api/orders", orderLimiter, requireCsrf, requireAuth, function (req, res) {
+    if (rejectCardPayload(req.body)) {
+      return res.status(400).json({ ok: false, message: "Synapse non acquisisce dati carta. Completa il pagamento solo tramite Revolut ufficiale." });
+    }
+    const customerName = normalizeOrderText(req.body && req.body.customerName, 120);
+    const phone = normalizeOrderText(req.body && req.body.phone, 40);
+    const discordUsername = normalizeOrderText(req.body && req.body.discordUsername, 80);
+    const productCategory = normalizeOrderText(req.body && req.body.productCategory, 80) || "Prodotto Synapse";
+    const productName = normalizeOrderText(req.body && req.body.productName, 160);
+    const priceLabel = normalizeOrderText(req.body && req.body.priceLabel, 80) || "Da confermare";
+    if (!/^\S+\s+\S+/.test(customerName)) {
+      return res.status(400).json({ ok: false, message: "Inserisci nome e cognome." });
+    }
+    if (!phone || !/^[+()0-9\s.-]{6,40}$/.test(phone) || phone.replace(/\D/g, "").length < 6) {
+      return res.status(400).json({ ok: false, message: "Inserisci un numero di telefono valido." });
+    }
+    if (!productName) {
+      return res.status(400).json({ ok: false, message: "Prodotto non valido." });
+    }
+    const order = orders.createOrder({
+      userId: req.currentUser.id,
+      email: req.currentUser.email,
+      customerName,
+      phone,
+      discordUsername,
+      productCategory,
+      productName,
+      priceLabel,
+      paymentMethod: "Revolut",
+      paymentLink: REVOLUT_PAYMENT_LINK,
+      ip: req.clientIp,
+    });
+    broadcaster.broadcast("order:new", order, { userIds: adminUserIds() });
+    broadcaster.broadcast("order:update", order, { userIds: orderAudience(order) });
+    res.status(201).json({ ok: true, order, paymentLink: REVOLUT_PAYMENT_LINK });
+  });
+
+  app.get("/api/orders/mine", requireAuth, function (req, res) {
+    res.json({ ok: true, orders: orders.listMyOrders(req.currentUser.id) });
+  });
+
+  app.get("/api/orders", requireAdmin, function (req, res) {
+    res.json({ ok: true, orders: orders.listAllOrders() });
+  });
+
+  app.get("/api/orders/:id", requireAuth, function (req, res) {
+    const order = orders.getOrder(parseInt(req.params.id, 10));
+    if (!order) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
+    if (!canReadOrder(req.currentUser, order)) return res.status(403).json({ ok: false, message: "Non puoi vedere questo ordine." });
+    res.json({ ok: true, order });
+  });
+
+  app.post("/api/orders/:id/confirm-payment", requireCsrf, requireAuth, function (req, res) {
+    const existing = orders.getOrder(parseInt(req.params.id, 10));
+    if (!existing) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
+    if (!canReadOrder(req.currentUser, existing)) return res.status(403).json({ ok: false, message: "Non puoi modificare questo ordine." });
+    const order = orders.markPaymentConfirmed(existing.id);
+    broadcaster.broadcast("order:update", order, { userIds: orderAudience(order) });
+    res.json({ ok: true, order });
+  });
+
+  app.post("/api/orders/:id/details", requireCsrf, requireAuth, function (req, res) {
+    const existing = orders.getOrder(parseInt(req.params.id, 10));
+    if (!existing) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
+    if (!canReadOrder(req.currentUser, existing)) return res.status(403).json({ ok: false, message: "Non puoi modificare questo ordine." });
+    const serviceDetails = normalizeOrderText(req.body && req.body.serviceDetails, 15000);
+    if (serviceDetails.length < 40) {
+      return res.status(400).json({ ok: false, message: "Descrivi il servizio richiesto in modo più completo." });
+    }
+    const order = orders.saveServiceDetails(existing.id, serviceDetails);
+    broadcaster.broadcast("order:update", order, { userIds: orderAudience(order) });
+    res.json({ ok: true, order });
+  });
 
   function broadcastChatMessage(chat, msg) {
     if (!chat || !msg) return;

@@ -60,12 +60,26 @@
     }
   }
 
+  function checkoutContext(category, name, price) {
+    return {
+      productCategory: category || "Prodotto Synapse",
+      productName: name || "Prodotto Synapse",
+      priceLabel: String(price || "Da confermare").trim(),
+    };
+  }
+
+  function openCheckoutFor(category, name, price) {
+    var detail = checkoutContext(category, name, price);
+    if (window.SynapseCheckout && window.SynapseCheckout.openFor) window.SynapseCheckout.openFor(detail);
+    else document.dispatchEvent(new CustomEvent("synapse:open-checkout", { detail: detail }));
+  }
+
   function ticketButton(category, name, price) {
     return el("button", {
       type: "button",
-      class: "btn btn-ghost product-ticket-btn",
-      text: "Apri ticket per informazioni",
-      onclick: function () { openTicketFor(category, name, price); },
+      class: "btn btn-primary product-ticket-btn",
+      text: "Acquista",
+      onclick: function () { openCheckoutFor(category, name, price); },
     });
   }
 
@@ -407,6 +421,7 @@
       reload: loadAll,
       closeEvents: closeEvents,
       openTicketFor: openTicketFor,
+      openCheckoutFor: openCheckoutFor,
     });
   }
 
@@ -486,6 +501,8 @@
     relay("ticket:new", "new");
     relay("ticket:update", "update");
     relay("ticket:mine", "mine");
+    src.addEventListener("order:new", function (ev) { try { document.dispatchEvent(new CustomEvent("synapse:orders-changed", { detail: { order: JSON.parse(ev.data), kind: "new" } })); } catch (_e) {} });
+    src.addEventListener("order:update", function (ev) { try { document.dispatchEvent(new CustomEvent("synapse:orders-changed", { detail: { order: JSON.parse(ev.data), kind: "update" } })); } catch (_e) {} });
     relay("chat:open", "open");
     relay("chat:message", "message");
     relay("chat:update", "update");
