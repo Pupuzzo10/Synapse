@@ -113,19 +113,23 @@ function getClientIp(req) {
 
 function isBlockedUser(user) {
   const status = user && user.account_status ? String(user.account_status) : "active";
-  return status === "suspended" || status === "banned";
+  return status === "suspended" || status === "banned" || status === "closed";
 }
 
 function blockInfoFromUser(user) {
   if (!isBlockedUser(user)) return null;
-  const status = user.account_status === "banned" ? "banned" : "suspended";
+  const raw = String(user.account_status || "active");
+  const status = raw === "banned" ? "banned" : raw === "closed" ? "closed" : "suspended";
   return {
     type: "account",
     status,
-    title: status === "banned" ? "Account bannato" : "Account sospeso",
+    title: status === "banned" ? "Account bannato" : status === "closed" ? "Account chiuso" : "Account sospeso",
+    forceLogout: status === "closed",
     message: user.account_status_reason || (status === "banned"
       ? "Il tuo account è stato bannato permanentemente. Non puoi più usare il sito."
-      : "Il tuo account è stato sospeso. Non puoi usare il sito finché lo staff non lo riattiva."),
+      : status === "closed"
+        ? "Il tuo account è stato chiuso dallo staff. Per motivi di sicurezza sei stato disconnesso."
+        : "Il tuo account è stato sospeso. Non puoi usare il sito finché lo staff non lo riattiva."),
   };
 }
 
@@ -162,8 +166,8 @@ function sendBlockedHtml(res, block) {
 </head>
 <body>
   <main class="blocked-card" role="main" aria-live="polite">
-    <div class="blocked-icon" aria-hidden="true">⚠</div>
-    <div class="blocked-kicker">Accesso negato</div>
+    <div class="blocked-icon" aria-hidden="true">${block.status === "closed" ? "✕" : "⚠"}</div>
+    <div class="blocked-kicker">${block.status === "closed" ? "Account chiuso" : "Accesso negato"}</div>
     <h1>${title}</h1>
     <p>${message}</p>
     <p class="blocked-note">Per contestare il provvedimento devi contattare lo staff tramite un canale esterno autorizzato.</p>
@@ -864,12 +868,14 @@ function createApp(overrides = {}) {
     let status;
     if (action === "suspend") status = "suspended";
     else if (action === "ban") status = "banned";
+    else if (action === "close") status = "closed";
     else if (action === "activate") status = "active";
     else return res.status(400).json({ ok: false, message: "Azione moderazione non valida." });
     try {
       const user = authDb.setUserModerationStatus(targetId, status, reason, req.currentUser.id);
+      const killedSessions = action === "close" && authDb.deleteSessionsByUserId ? authDb.deleteSessionsByUserId(targetId) : 0;
       const ips = [];
-      if (action === "ban" && banIp) {
+      if ((action === "ban") && banIp) {
         [target.last_ip, target.register_ip].forEach(function (ip) {
           if (ip && ips.indexOf(ip) === -1) {
             authDb.banIp(ip, reason || "Ban permanente account collegato", req.currentUser.id);
@@ -887,12 +893,12 @@ function createApp(overrides = {}) {
       }
       const block = status === "active" ? null : blockInfoFromUser(user);
       const serializedUser = serializeUser(user);
-      broadcaster.broadcast("moderation:update", { user: serializedUser, block }, { userIds: [targetId] });
+      broadcaster.broadcast("moderation:update", { user: serializedUser, block, forceLogout: action === "close", killedSessions }, { userIds: [targetId] });
       if (ips.length) broadcaster.broadcast("moderation:update", { user: serializedUser, block }, { ips });
       broadcaster.broadcast("users:update", { user: serializedUser }, { userIds: adminUserIds() });
       broadcaster.broadcast("moderation:list-update", { user: serializedUser, ips }, { userIds: adminUserIds() });
       broadcastAdminPresence();
-      res.json({ ok: true, user: serializedUser, affectedIps: ips });
+      res.json({ ok: true, user: serializedUser, affectedIps: ips, killedSessions });
     } catch (error) {
       res.status(400).json({ ok: false, message: error.message });
     }
@@ -928,7 +934,7 @@ function createApp(overrides = {}) {
   app.post("/api/admin/moderation/unban-all", requireCsrf, requireAdmin, function (req, res) {
     const now = authDb.nowIso();
     const tx = authDb.db.transaction(function () {
-      const users = authDb.db.prepare("UPDATE users SET account_status = 'active', account_status_reason = NULL, account_status_updated_at = @now, account_status_updated_by = @admin, updated_at = @now WHERE COALESCE(account_status, 'active') <> 'active'").run({ now, admin: req.currentUser.id });
+      const users = authDb.db.prepare("UPDATE users SET account_status = 'active', account_status_reason = NULL, account_status_updated_at = @now, account_status_updated_by = @admin, updated_at = @now WHERE COALESCE(account_status, 'active') IN ('suspended', 'banned')").run({ now, admin: req.currentUser.id });
       let ips = { changes: 0 };
       try {
         ips = authDb.db.prepare("UPDATE ip_bans SET active = 0, lifted_at = @now, lifted_by = @admin, updated_at = @now WHERE active = 1").run({ now, admin: req.currentUser.id });

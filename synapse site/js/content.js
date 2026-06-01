@@ -8,6 +8,7 @@
   })();
 
   var currentEventSource = null;
+  var contentPollTimer = null;
   var syntheticReviewTimer = null;
   var syntheticReviews = [];
 
@@ -458,12 +459,16 @@
     var src;
     try {
       var sid = (window.SynapseAuth && window.SynapseAuth.getSessionId && window.SynapseAuth.getSessionId()) || "";
-      var url = appBaseUrl + "/api/events" + (sid ? "?session=" + encodeURIComponent(sid) : "");
+      var page = encodeURIComponent((document.title || "Sito").replace(/\s+—\s+Synapse.*$/i, "").slice(0, 80) || "Sito");
+      var url = appBaseUrl + "/api/events" + (sid ? "?session=" + encodeURIComponent(sid) + "&page=" + page : "?page=" + page);
       src = new EventSource(url, { withCredentials: false });
     } catch (_e) { return; }
     currentEventSource = src;
     src.addEventListener("content", function (ev) { try { applyContent(JSON.parse(ev.data)); } catch (_e) {} });
     src.addEventListener("status", function (ev) { try { applyStatus(JSON.parse(ev.data)); } catch (_e) {} });
+    src.onerror = function () {
+      // EventSource si riconnette da solo; il polling sotto resta come rete di sicurezza.
+    };
 
     function relay(name, kind) {
       src.addEventListener(name, function (ev) {
@@ -501,10 +506,18 @@
     });
   }
 
+  function startContentPolling() {
+    if (contentPollTimer) window.clearInterval(contentPollTimer);
+    contentPollTimer = window.setInterval(function () {
+      loadAll().catch(function () { /* il canale SSE resta la fonte primaria */ });
+    }, 30000);
+  }
+
   setSynapseContent(null, null);
-  loadAll().then(function () { connectEvents(); }).catch(function (err) {
+  loadAll().then(function () { connectEvents(); startContentPolling(); }).catch(function (err) {
     console.error("[content] caricamento fallito:", err);
     connectEvents();
+    startContentPolling();
   });
   document.addEventListener("synapse:auth-changed", function () { setTimeout(connectEvents, 100); });
 })();

@@ -29,6 +29,10 @@
   var typingTimer = null;
   var partnerTypingTimer = null;
   var lastTypingSent = false;
+  var lastTypingPulseAt = 0;
+  var typingIdleMs = 5200;
+  var typingPulseMs = 1400;
+  var partnerTypingIdleMs = 7200;
 
   function authHeaders(extra) { return (window.SynapseAuth && window.SynapseAuth.headers) ? window.SynapseAuth.headers(extra || {}) : (extra || {}); }
   function statusLabel(s) { return ({ open: "aperta", paused: "in attesa", suspended: "sospesa", closed: "chiusa" })[s] || s; }
@@ -36,6 +40,19 @@
   function setState(state) { widget.setAttribute("data-state", state); }
   function show() { widget.removeAttribute("hidden"); if (widget.getAttribute("data-state") === "minimized" || widget.getAttribute("data-state") === "closed") setState("open"); }
   function hide() { sendTyping(false); widget.setAttribute("hidden", ""); setState("closed"); }
+  function resetCurrentChat() {
+    sendTyping(false);
+    currentChat = null;
+    currentMessages = [];
+    lastTypingSent = false;
+    lastTypingPulseAt = 0;
+    setPartnerTyping(false);
+  }
+  function closeLocally() {
+    resetCurrentChat();
+    hide();
+    try { document.dispatchEvent(new CustomEvent("synapse:chat-closed-local")); } catch (_e) {}
+  }
 
   function upsertMessage(message) {
     if (!message || !message.id) return;
@@ -75,7 +92,7 @@
     if (em) em.textContent = isTyping ? ((name || partnerName()) + " sta scrivendo") : "";
     if (isTyping && messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
     if (partnerTypingTimer) clearTimeout(partnerTypingTimer);
-    if (isTyping) partnerTypingTimer = setTimeout(function () { setPartnerTyping(false); }, 3500);
+    if (isTyping) partnerTypingTimer = setTimeout(function () { setPartnerTyping(false); }, partnerTypingIdleMs);
   }
 
   function renderMessages() {
@@ -142,6 +159,9 @@
     if (inputEl) inputEl.disabled = !canSend;
     if (sendBtn) sendBtn.disabled = !canSend;
     if (disabledMsg) { disabledMsg.textContent = disabled; disabledMsg.hidden = !disabled; }
+    if (currentChat.status === "closed") {
+      window.setTimeout(closeLocally, 550);
+    }
   }
 
   function loadChat(chatId) {
@@ -167,8 +187,12 @@
 
   function sendTyping(isTyping) {
     if (!currentChat || !currentUser) return;
-    if (lastTypingSent === isTyping) return;
-    lastTypingSent = isTyping;
+    var now = Date.now();
+    if (isTyping) {
+      if (lastTypingSent && now - lastTypingPulseAt < typingPulseMs) return;
+      lastTypingPulseAt = now;
+    } else if (!lastTypingSent) return;
+    lastTypingSent = !!isTyping;
     fetch(appBaseUrl + "/api/chats/" + currentChat.id + "/typing", {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
@@ -178,9 +202,10 @@
 
   function scheduleTyping() {
     if (!currentChat || !inputEl || inputEl.disabled) return;
-    sendTyping(true);
+    if (inputEl.value.trim()) sendTyping(true);
+    else sendTyping(false);
     if (typingTimer) clearTimeout(typingTimer);
-    typingTimer = setTimeout(function () { sendTyping(false); }, 1600);
+    typingTimer = setTimeout(function () { sendTyping(false); }, typingIdleMs);
   }
 
   function sendMessage(e) {
@@ -210,6 +235,10 @@
 
   function changeStatus() {
     if (!currentChat || !statusSelect) return;
+    if (statusSelect.value === "closed") {
+      closeConversation("resolved");
+      return;
+    }
     fetch(appBaseUrl + "/api/chats/" + currentChat.id + "/status", {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
@@ -222,14 +251,20 @@
   function closeConversation(reason) {
     if (!currentChat) return;
     var label = reason === "resolved" ? "Risolto" : "Non risolto";
-    if (!confirm("Chiudere la chat come " + label + "?")) return;
+    if (!confirm("Chiudere la chat come " + label + "?")) { applyChatMeta(); return; }
     fetch(appBaseUrl + "/api/chats/" + currentChat.id + "/close", {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
       body: JSON.stringify({ reason: reason }),
     })
       .then(function (r) { return r.json(); })
-      .then(function (data) { if (data.ok) { currentChat = data.chat; applyChatMeta(); } else alert(data.message || "Errore"); })
+      .then(function (data) {
+        if (data.ok) {
+          currentChat = data.chat;
+          applyChatMeta();
+          if (data.chat && data.chat.status === "closed") closeLocally();
+        } else alert(data.message || "Errore");
+      })
       .catch(function (err) { alert("Errore: " + err.message); });
   }
 
@@ -250,6 +285,7 @@
   if (formEl) formEl.addEventListener("submit", sendMessage);
   if (inputEl) {
     inputEl.addEventListener("input", scheduleTyping);
+    inputEl.addEventListener("blur", function () { sendTyping(false); });
     inputEl.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -264,13 +300,17 @@
 
   document.addEventListener("synapse:auth-changed", function (ev) {
     currentUser = (ev.detail && ev.detail.user) || null;
-    if (!currentUser) { hide(); currentChat = null; currentMessages = []; }
+    if (!currentUser) { closeLocally(); }
   });
 
   document.addEventListener("synapse:chat-event", function (ev) {
     var detail = ev.detail || {};
     if (detail.kind === "open") {
-      document.dispatchEvent(new CustomEvent("synapse:chat-available", { detail: { chat: detail.payload } }));
+      var opened = detail.payload;
+      document.dispatchEvent(new CustomEvent("synapse:chat-available", { detail: { chat: opened } }));
+      if (opened && currentUser && !currentUser.isAdmin && opened.userId === currentUser.id) {
+        open(opened.id);
+      }
     } else if (detail.kind === "message") {
       var p = detail.payload;
       if (!currentChat || p.chatId !== currentChat.id) return;
@@ -282,6 +322,7 @@
       if (!currentChat || c.id !== currentChat.id) return;
       currentChat = c;
       applyChatMeta();
+      if (c.status === "closed") closeLocally();
     } else if (detail.kind === "typing") {
       var t = detail.payload;
       if (!currentChat || t.chatId !== currentChat.id) return;
@@ -290,5 +331,10 @@
     }
   });
 
-  window.SynapseChat = { open: open, reload: function () { if (currentChat) return loadChat(currentChat.id); }, getCurrentChat: function () { return currentChat; } };
+  window.SynapseChat = {
+    open: open,
+    close: closeLocally,
+    reload: function () { if (currentChat) return loadChat(currentChat.id); },
+    getCurrentChat: function () { return currentChat; }
+  };
 })();

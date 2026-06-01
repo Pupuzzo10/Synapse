@@ -208,6 +208,15 @@ function ensureDatabase(dbPath) {
     db.exec("ALTER TABLE tickets ADD COLUMN product_name TEXT");
   }
 
+  // Coerenza dati: se una chat è chiusa, anche il ticket collegato deve risultare chiuso.
+  // Evita il blocco "hai già un ticket aperto" dopo una chiusura dal pannello admin.
+  db.exec(`
+    UPDATE tickets
+    SET status = 'closed', updated_at = COALESCE(updated_at, datetime('now'))
+    WHERE chat_id IN (SELECT id FROM chats WHERE status = 'closed')
+      AND status NOT IN ('closed', 'declined')
+  `);
+
   const statements = {
     insertUser: db.prepare(`
       INSERT INTO users (
@@ -337,6 +346,10 @@ function ensureDatabase(dbPath) {
     deleteSession: db.prepare(`
       DELETE FROM sessions
       WHERE id = ?
+    `),
+    deleteSessionsByUserId: db.prepare(`
+      DELETE FROM sessions
+      WHERE user_id = ?
     `),
     deleteExpiredSessions: db.prepare(`
       DELETE FROM sessions
@@ -498,6 +511,11 @@ function ensureDatabase(dbPath) {
     statements.deleteSession.run(id);
   }
 
+  function deleteSessionsByUserId(userId) {
+    if (!userId) return 0;
+    return statements.deleteSessionsByUserId.run(userId).changes || 0;
+  }
+
   function createEmailDeliveryLog({
     userId,
     email,
@@ -541,7 +559,7 @@ function ensureDatabase(dbPath) {
   }
 
   function setUserModerationStatus(userId, status, reason, adminId) {
-    if (["active", "suspended", "banned"].indexOf(status) === -1) {
+    if (["active", "suspended", "banned", "closed"].indexOf(status) === -1) {
       throw new Error("Stato account non valido");
     }
     const now = nowIso();
@@ -671,6 +689,7 @@ function ensureDatabase(dbPath) {
     saveSession,
     findSessionById,
     deleteSession,
+    deleteSessionsByUserId,
     createEmailDeliveryLog,
     findEmailLogsByUserId,
     nowIso,

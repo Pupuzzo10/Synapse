@@ -1,17 +1,20 @@
 (function () {
-  // Sessione per-scheda: salvata in sessionStorage (NON localStorage),
-  // cosi' ogni tab ha la propria identita'. Il server riceve l'ID via header
-  // x-session-id e ignora completamente i cookie.
+  // Sessione persistente: salvata in localStorage così il login resta valido
+  // anche quando l'utente rientra nel sito. sessionStorage resta come fallback
+  // per chi arriva da una versione precedente.
   var SESSION_KEY = "synapse:sessionId";
   var CSRF_KEY = "synapse:csrfToken";
-  function loadSessionStorage(key) { try { return sessionStorage.getItem(key) || ""; } catch (_e) { return ""; } }
-  function saveSessionStorage(key, val) { try { if (val) sessionStorage.setItem(key, val); else sessionStorage.removeItem(key); } catch (_e) { /* ignore */ } }
-  var sessionId = loadSessionStorage(SESSION_KEY);
-  var csrfToken = loadSessionStorage(CSRF_KEY);
+  function readStore(store, key) { try { return store && store.getItem(key) || ""; } catch (_e) { return ""; } }
+  function writeStore(store, key, val) { try { if (!store) return; if (val) store.setItem(key, val); else store.removeItem(key); } catch (_e) { /* ignore */ } }
+  function loadStoredValue(key) { return readStore(window.localStorage, key) || readStore(window.sessionStorage, key); }
+  function saveStoredValue(key, val) { writeStore(window.localStorage, key, val); writeStore(window.sessionStorage, key, val); }
+  function clearStoredSession() { saveStoredValue(SESSION_KEY, ""); saveStoredValue(CSRF_KEY, ""); }
+  var sessionId = loadStoredValue(SESSION_KEY);
+  var csrfToken = loadStoredValue(CSRF_KEY);
   function updateSessionFromPayload(payload) {
     if (!payload) return;
-    if (payload.sessionId) { sessionId = payload.sessionId; saveSessionStorage(SESSION_KEY, sessionId); }
-    if (payload.csrfToken) { csrfToken = payload.csrfToken; saveSessionStorage(CSRF_KEY, csrfToken); }
+    if (payload.sessionId) { sessionId = payload.sessionId; saveStoredValue(SESSION_KEY, sessionId); }
+    if (payload.csrfToken) { csrfToken = payload.csrfToken; saveStoredValue(CSRF_KEY, csrfToken); }
   }
   var modal = document.getElementById("auth-modal");
   var openBtn = document.getElementById("open-auth-modal");
@@ -76,9 +79,10 @@
 
   function renderBlockedScreen(block) {
     block = block || {};
-    var status = block.status === "suspended" ? "sospeso" : "bannato";
-    var title = block.title || (status === "sospeso" ? "Account sospeso" : "Accesso bloccato");
+    var status = block.status === "suspended" ? "sospeso" : block.status === "closed" ? "chiuso" : "bannato";
+    var title = block.title || (status === "sospeso" ? "Account sospeso" : status === "chiuso" ? "Account chiuso" : "Accesso bloccato");
     var message = block.message || "Non puoi usare questo sito.";
+    if (block.forceLogout || block.status === "closed") clearStoredSession();
     try { if (window.SynapseContent && window.SynapseContent.closeEvents) window.SynapseContent.closeEvents(); } catch (_e) { /* ignore */ }
     document.title = title + " — Synapse";
     document.body.className = "blocked-page-body";
@@ -90,10 +94,10 @@
     var icon = document.createElement("div");
     icon.className = "blocked-page-icon";
     icon.setAttribute("aria-hidden", "true");
-    icon.textContent = status === "sospeso" ? "⏸" : "⚠";
+    icon.textContent = status === "sospeso" ? "⏸" : status === "chiuso" ? "✕" : "⚠";
     var kicker = document.createElement("p");
     kicker.className = "blocked-page-kicker";
-    kicker.textContent = status === "sospeso" ? "Account sospeso" : "Account bannato";
+    kicker.textContent = status === "sospeso" ? "Account sospeso" : status === "chiuso" ? "Account chiuso" : "Account bannato";
     var h = document.createElement("h1");
     h.textContent = title;
     var p = document.createElement("p");
@@ -435,6 +439,7 @@
         });
 
         updateSessionFromPayload(payload);
+        if (payload && !payload.user) clearStoredSession();
         updateNav(null);
         setMessage(authBanner, payload.message, "info");
       } catch (error) {
@@ -448,7 +453,7 @@
     return;
   }
 
-  Promise.all([refreshCsrfToken(), refreshSession()])
+  (sessionId ? refreshSession().then(refreshCsrfToken) : refreshCsrfToken().then(refreshSession))
     .then(function () {
       clearMessages();
       handleVerificationFeedback();

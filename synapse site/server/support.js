@@ -223,7 +223,12 @@ function createSupport(authDb) {
 
   function setChatStatus(id, status) {
     if (CHAT_STATUSES.indexOf(status) === -1) throw new Error("Stato chat non valido");
-    stmts.updateChatStatus.run({ id, status, now: nowIso() });
+    if (status === "closed") return closeChatTx(id, "resolved");
+    const chat = getChat(id);
+    if (!chat) return null;
+    const now = nowIso();
+    stmts.updateChatStatus.run({ id, status, now });
+    if (chat.ticketId) stmts.updateTicketStatus.run({ id: chat.ticketId, status: "in_chat", now });
     return getChat(id);
   }
 

@@ -32,7 +32,7 @@ function createConfig(overrides = {}) {
     sessionCookieName:
       overrides.sessionCookieName || process.env.SESSION_COOKIE_NAME || "synapse.sid",
     sessionTtlMs:
-      overrides.sessionTtlMs || parseIntOr(process.env.SESSION_TTL_MS, 1000 * 60 * 60 * 24),
+      overrides.sessionTtlMs || parseIntOr(process.env.SESSION_TTL_MS, 1000 * 60 * 60 * 24 * 30),
     bcryptRounds:
       overrides.bcryptRounds || parseIntOr(process.env.BCRYPT_ROUNDS, 12),
     verificationTtlMs:

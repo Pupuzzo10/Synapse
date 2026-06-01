@@ -413,15 +413,15 @@
   }
 
   function accountStatusLabel(status) {
-    return ({ active: "Attivo", suspended: "Sospeso", banned: "Bannato" })[status || "active"] || status;
+    return ({ active: "Attivo", suspended: "Sospeso", banned: "Bannato", closed: "Chiuso/rimosso" })[status || "active"] || status;
   }
 
   function moderationUserAction(userId, action, banIp) {
-    var labels = { suspend: "sospendere", ban: "bannare permanentemente", activate: "riattivare" };
+    var labels = { suspend: "sospendere", ban: "bannare permanentemente", close: "chiudere/rimuovere", activate: "riattivare" };
     var reason = "";
     var liftIp = false;
     if (action !== "activate") {
-      reason = prompt("Motivo per " + labels[action] + " l'account:", action === "ban" ? "Comportamento malevolo / spam" : "Verifica amministrativa in corso");
+      reason = prompt("Motivo per " + labels[action] + " l'account:", action === "ban" ? "Comportamento malevolo / spam" : action === "close" ? "Chiusura account richiesta/decisa dallo staff" : "Verifica amministrativa in corso");
       if (reason == null) return;
     } else {
       if (!confirm("Riattivare questo account?")) return;
@@ -486,8 +486,12 @@
       if ((user.accountStatus || "active") === "active") {
         actions.appendChild(el("button", { type: "button", class: "btn btn-ghost", text: "Sospendi account", onclick: function () { moderationUserAction(user.id, "suspend", false); } }));
         actions.appendChild(el("button", { type: "button", class: "btn btn-ghost admin-btn-danger", text: "Banna account + IP", onclick: function () { moderationUserAction(user.id, "ban", true); } }));
+        actions.appendChild(el("button", { type: "button", class: "btn btn-ghost admin-btn-danger", text: "Chiudi/rimozione account", onclick: function () { moderationUserAction(user.id, "close", false); } }));
       } else {
         actions.appendChild(el("button", { type: "button", class: "btn btn-ghost", text: "Riattiva account", onclick: function () { moderationUserAction(user.id, "activate", false); } }));
+        if ((user.accountStatus || "active") !== "closed") {
+          actions.appendChild(el("button", { type: "button", class: "btn btn-ghost admin-btn-danger", text: "Chiudi/rimozione account", onclick: function () { moderationUserAction(user.id, "close", false); } }));
+        }
       }
     }
     if (ip) {
@@ -776,10 +780,18 @@
       actions.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Apri conversazione", onclick: function () { if (window.SynapseChat && window.SynapseChat.open) window.SynapseChat.open(c.id); } }));
       if (c.status !== "closed") {
         actions.appendChild(el("button", { type: "button", class: "btn btn-ghost", text: "Metti in attesa", onclick: function () {
-          fetch(appBaseUrl + "/api/chats/" + c.id + "/status", { method: "POST", headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }), body: JSON.stringify({ status: "paused" }) }).then(function () { loadChats(); });
+          fetch(appBaseUrl + "/api/chats/" + c.id + "/status", { method: "POST", headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }), body: JSON.stringify({ status: "paused" }) }).then(function () { loadChats(); loadTickets(); });
         } }));
         actions.appendChild(el("button", { type: "button", class: "btn btn-ghost", text: "Riapri", onclick: function () {
-          fetch(appBaseUrl + "/api/chats/" + c.id + "/status", { method: "POST", headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }), body: JSON.stringify({ status: "open" }) }).then(function () { loadChats(); });
+          fetch(appBaseUrl + "/api/chats/" + c.id + "/status", { method: "POST", headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }), body: JSON.stringify({ status: "open" }) }).then(function () { loadChats(); loadTickets(); });
+        } }));
+        actions.appendChild(el("button", { type: "button", class: "btn btn-ghost admin-btn-danger", text: "Chiudi risolto", onclick: function () {
+          if (!confirm("Chiudere questa chat come risolta?")) return;
+          fetch(appBaseUrl + "/api/chats/" + c.id + "/close", { method: "POST", headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }), body: JSON.stringify({ reason: "resolved" }) }).then(function () { loadChats(); loadTickets(); });
+        } }));
+        actions.appendChild(el("button", { type: "button", class: "btn btn-ghost admin-btn-danger", text: "Chiudi non risolto", onclick: function () {
+          if (!confirm("Chiudere questa chat come non risolta?")) return;
+          fetch(appBaseUrl + "/api/chats/" + c.id + "/close", { method: "POST", headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }), body: JSON.stringify({ reason: "unresolved" }) }).then(function () { loadChats(); loadTickets(); });
         } }));
       }
       card.appendChild(actions);
@@ -939,4 +951,13 @@
     loadPresence();
     loadIpBans();
   });
+
+  window.setInterval(function () {
+    var adminOpen = openBtn && !openBtn.hidden;
+    if (!adminOpen) return;
+    if (activeTab === "tickets") { loadTickets(); loadChats(); }
+    else if (activeTab === "chats") { loadChats(); loadTickets(); }
+    else if (activeTab === "presence" || activeTab === "moderation") { loadPresence(); loadUsers(); loadIpBans(); }
+    else if (activeTab === "adminAccounts") { loadUsers(); }
+  }, 9000);
 })();

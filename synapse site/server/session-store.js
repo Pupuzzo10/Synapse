@@ -16,8 +16,8 @@ function createSessionMiddleware(authDb, config) {
     });
   }
 
-  // Sessioni indipendenti per scheda: il client salva l'ID in sessionStorage
-  // e lo manda nell'header x-session-id su tutte le richieste.
+  // Il client conserva l'ID sessione in localStorage e lo manda nell'header
+  // x-session-id su tutte le richieste, così il login resta persistente.
   // Per SSE (EventSource non supporta header custom) si accetta anche ?session=...
   function readSessionId(req) {
     const h = req.get("x-session-id");

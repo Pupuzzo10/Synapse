@@ -291,11 +291,26 @@
 
   document.addEventListener("synapse:ticket-mine", function (ev) { upsertMineTicket(ev.detail && ev.detail.ticket); });
   document.addEventListener("synapse:ticket-update", function (ev) { upsertMineTicket(ev.detail && ev.detail.ticket); });
-  document.addEventListener("synapse:chat-available", function () { refreshMyChats(); });
-  document.addEventListener("synapse:chat-event", function (ev) {
-    if (ev.detail && (ev.detail.kind === "open" || ev.detail.kind === "update" || ev.detail.kind === "message")) refreshMyChats();
+  document.addEventListener("synapse:chat-available", function (ev) {
+    refreshMyChats();
+    var chat = ev.detail && ev.detail.chat;
+    if (chat && currentUser && chat.userId === currentUser.id) closeModal();
   });
+  document.addEventListener("synapse:chat-event", function (ev) {
+    if (ev.detail && (ev.detail.kind === "open" || ev.detail.kind === "update" || ev.detail.kind === "message")) {
+      refreshMyChats();
+      loadMine();
+    }
+  });
+  document.addEventListener("synapse:chat-closed-local", function () { refreshMyChats(); loadMine(); setMsg("", "info"); });
   document.addEventListener("synapse:staff-presence", function (ev) { staffOnline = !!(ev.detail && ev.detail.online); applyStaffPresence(); });
+
+  window.setInterval(function () {
+    if (!currentUser) return;
+    loadMine();
+    refreshMyChats();
+    refreshStaffPresence();
+  }, 10000);
 
   window.SynapseSupport = { open: openModal, openFor: openModal, reload: loadMine };
 })();
