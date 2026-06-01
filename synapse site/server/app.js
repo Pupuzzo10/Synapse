@@ -340,28 +340,39 @@ function createApp(overrides = {}) {
       try { res.write(": ping\n\n"); } catch (_e) { /* ignore */ }
     }, 25000);
     let isAdminClient = false;
+    let currentUser = null;
     if (req.authSession && req.authSession.userId) {
-      const u = authDb.findUserById(req.authSession.userId);
-      if (u && u.is_admin) isAdminClient = true;
+      currentUser = authDb.findUserById(req.authSession.userId);
+      if (currentUser && currentUser.is_admin) isAdminClient = true;
     }
-    broadcaster.addClient(res, req.authSession && req.authSession.userId, { isAdmin: isAdminClient });
-    // Notifica presenza staff
-    if (isAdminClient) {
-      broadcaster.broadcast("staff:presence", { online: true });
-    } else {
-      // Manda al singolo client appena connesso lo stato attuale come messaggio "comment" non e' utile,
-      // useremo l'endpoint REST per il primo valore.
-    }
+    const page = typeof req.query.page === "string" && req.query.page.trim() ? req.query.page.trim().slice(0, 120) : "Sito";
+    broadcaster.addClient(res, req.authSession && req.authSession.userId, {
+      sessionId: req.authSession && req.authSession.id,
+      isAdmin: isAdminClient,
+      username: currentUser && currentUser.username,
+      email: currentUser && currentUser.email,
+      page,
+    });
+    broadcaster.broadcast("staff:presence", { online: broadcaster.hasAdminOnline() });
     req.on("close", function () {
       clearInterval(heartbeat);
-      if (isAdminClient && !broadcaster.hasAdminOnline()) {
-        broadcaster.broadcast("staff:presence", { online: false });
-      }
+      broadcaster.broadcast("staff:presence", { online: broadcaster.hasAdminOnline() });
     });
   });
 
   app.get("/api/staff-presence", function (req, res) {
     res.json({ ok: true, online: broadcaster.hasAdminOnline() });
+  });
+
+  app.get("/api/presence", requireAdmin, function (req, res) {
+    res.json({ ok: true, presence: broadcaster.presenceSnapshot() });
+  });
+
+  app.post("/api/presence/ping", requireCsrf, function (req, res) {
+    const page = req.body && typeof req.body.page === "string" ? req.body.page : "Sito";
+    const lastEvent = req.body && typeof req.body.lastEvent === "string" ? req.body.lastEvent : "Navigazione";
+    const client = broadcaster.updateClientBySessionId(req.authSession.id, { page, lastEvent });
+    res.json({ ok: true, client });
   });
 
   function requireAuth(req, res, next) {
@@ -551,12 +562,55 @@ function createApp(overrides = {}) {
     }
   });
 
+  app.post("/api/chats/:id/close", requireCsrf, requireAdmin, function (req, res) {
+    const reason = req.body && typeof req.body.reason === "string" ? req.body.reason : "";
+    try {
+      const chat = support.closeChat(parseInt(req.params.id, 10), reason);
+      if (!chat) return res.status(404).json({ ok: false, message: "Chat inesistente." });
+      const ticket = chat.ticketId ? support.getTicket(chat.ticketId) : null;
+      const audience = adminUserIds().concat([chat.userId]);
+      broadcaster.broadcast("chat:update", chat, { userIds: audience });
+      if (ticket) broadcaster.broadcast("ticket:update", ticket, { userIds: audience });
+      res.json({ ok: true, chat, ticket });
+    } catch (error) {
+      res.status(400).json({ ok: false, message: error.message });
+    }
+  });
+
   app.post("/api/chats/:id/permissions", requireCsrf, requireAdmin, function (req, res) {
     const userCanSend = !!(req.body && req.body.userCanSend);
     const chat = support.setChatPermissions(parseInt(req.params.id, 10), userCanSend);
     if (!chat) return res.status(404).json({ ok: false, message: "Chat inesistente." });
     broadcaster.broadcast("chat:update", chat, { userIds: adminUserIds().concat([chat.userId]) });
     res.json({ ok: true, chat });
+  });
+
+  app.get("/api/admin/users", requireAdmin, function (req, res) {
+    const users = authDb.db.prepare(`
+      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin, created_at, updated_at
+      FROM users
+      ORDER BY is_admin DESC, created_at DESC
+    `).all().map(serializeUser);
+    res.json({ ok: true, users });
+  });
+
+  app.post("/api/admin/users/admin", requireCsrf, requireAdmin, async function (req, res, next) {
+    const username = req.body && typeof req.body.username === "string" ? req.body.username.trim() : "";
+    const email = req.body && typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = req.body && typeof req.body.password === "string" ? req.body.password : "";
+    if (username.length < 2 || username.length > 40) return res.status(400).json({ ok: false, message: "Nome utente admin non valido." });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, message: "Email admin non valida." });
+    if (password.length < 8 || password.length > 72) return res.status(400).json({ ok: false, message: "La password admin deve avere tra 8 e 72 caratteri." });
+    try {
+      if (authDb.findUserByEmail(email)) return res.status(409).json({ ok: false, message: "Esiste già un account con questa email." });
+      const passwordHash = await bcrypt.hash(password, config.bcryptRounds);
+      const user = authDb.createUser({ username, email, passwordHash, marketingOptIn: false });
+      authDb.setUserAdmin(user.id, true);
+      authDb.db.prepare("UPDATE users SET email_verified_at = @now, updated_at = @now WHERE id = @id").run({ id: user.id, now: authDb.nowIso() });
+      res.status(201).json({ ok: true, user: serializeUser(authDb.findUserById(user.id)) });
+    } catch (error) {
+      return next(error);
+    }
   });
 
   app.get("/verify-email", function (req, res) {

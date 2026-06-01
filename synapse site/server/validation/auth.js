@@ -14,16 +14,7 @@ const emailSchema = z
 const passwordSchema = z
   .string()
   .min(8, "La password deve contenere almeno 8 caratteri.")
-  .max(72, "La password non puo superare 72 caratteri.")
-  .refine((value) => /[A-Z]/.test(value), {
-    message: "La password deve contenere almeno una lettera maiuscola.",
-  })
-  .refine((value) => /[a-z]/.test(value), {
-    message: "La password deve contenere almeno una lettera minuscola.",
-  })
-  .refine((value) => /\d/.test(value), {
-    message: "La password deve contenere almeno un numero.",
-  });
+  .max(72, "La password non puo superare 72 caratteri.");
 
 const registerSchema = z
   .object({

@@ -4,6 +4,24 @@ const contentDefaults = require("./content-defaults");
 const CONTENT_KEY = "site_content";
 const STATUS_KEY = "service_status";
 
+function defaultContent() {
+  const { defaultStatus, ...content } = contentDefaults;
+  return content;
+}
+
+function mergeMissingContentSections(current) {
+  const defaults = defaultContent();
+  const merged = Object.assign({}, current || {});
+  let changed = false;
+  Object.keys(defaults).forEach(function (key) {
+    if (typeof merged[key] === "undefined") {
+      merged[key] = defaults[key];
+      changed = true;
+    }
+  });
+  return { content: merged, changed };
+}
+
 async function seedAdmin(authDb, config) {
   if (!config.adminEmail || !config.adminPassword) {
     return null;
@@ -31,9 +49,12 @@ async function seedAdmin(authDb, config) {
 }
 
 function seedContent(authDb) {
-  if (!authDb.getSetting(CONTENT_KEY)) {
-    const { defaultStatus, ...content } = contentDefaults;
-    authDb.setSetting(CONTENT_KEY, content);
+  const existing = authDb.getSetting(CONTENT_KEY);
+  if (!existing) {
+    authDb.setSetting(CONTENT_KEY, defaultContent());
+  } else {
+    const merged = mergeMissingContentSections(existing);
+    if (merged.changed) authDb.setSetting(CONTENT_KEY, merged.content);
   }
   if (!authDb.getSetting(STATUS_KEY)) {
     authDb.setSetting(STATUS_KEY, contentDefaults.defaultStatus);
@@ -42,9 +63,12 @@ function seedContent(authDb) {
 
 function getContent(authDb) {
   const content = authDb.getSetting(CONTENT_KEY);
-  if (content) return content;
-  const { defaultStatus, ...fallback } = contentDefaults;
-  return fallback;
+  if (content) {
+    const merged = mergeMissingContentSections(content);
+    if (merged.changed) authDb.setSetting(CONTENT_KEY, merged.content);
+    return merged.content;
+  }
+  return defaultContent();
 }
 
 function saveContent(authDb, content) {

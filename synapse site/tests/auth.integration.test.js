@@ -117,8 +117,8 @@ describe("flusso integrazione autenticazione", function () {
     const registerResponse = await context.client.post("/api/auth/register", {
       username: "Synapse User",
       email: "user@example.com",
-      password: "ciao",
-      passwordConfirm: "ciao",
+      password: "password1",
+      passwordConfirm: "password1",
       marketingOptIn: true,
     });
 
@@ -141,7 +141,7 @@ describe("flusso integrazione autenticazione", function () {
     await context.client.bootstrap();
     const loginResponse = await context.client.post("/api/auth/login", {
       email: "user@example.com",
-      password: "ciao",
+      password: "password1",
     });
 
     expect(loginResponse.status).toBe(200);
@@ -154,8 +154,8 @@ describe("flusso integrazione autenticazione", function () {
     await context.client.post("/api/auth/register", {
       username: "Synapse",
       email: "user@example.com",
-      password: "ciao",
-      passwordConfirm: "ciao",
+      password: "password1",
+      passwordConfirm: "password1",
       marketingOptIn: false,
     });
 
@@ -164,7 +164,7 @@ describe("flusso integrazione autenticazione", function () {
 
     const loginResponse = await context.client.post("/api/auth/login", {
       email: "user@example.com",
-      password: "sbagliata",
+      password: "wrongpass",
     });
 
     expect(loginResponse.status).toBe(401);
@@ -177,8 +177,8 @@ describe("flusso integrazione autenticazione", function () {
     const first = await context.client.post("/api/auth/register", {
       username: "Primo",
       email: "dup@example.com",
-      password: "abc",
-      passwordConfirm: "abc",
+      password: "password2",
+      passwordConfirm: "password2",
       marketingOptIn: false,
     });
     expect(first.status).toBe(201);
@@ -186,8 +186,8 @@ describe("flusso integrazione autenticazione", function () {
     const second = await context.client.post("/api/auth/register", {
       username: "Secondo",
       email: "dup@example.com",
-      password: "xyz",
-      passwordConfirm: "xyz",
+      password: "password3",
+      passwordConfirm: "password3",
       marketingOptIn: false,
     });
 
@@ -202,8 +202,8 @@ describe("flusso integrazione autenticazione", function () {
     const reg = await tab1.post("/api/auth/register", {
       username: "Tab Uno",
       email: "tab1@example.com",
-      password: "ciao",
-      passwordConfirm: "ciao",
+      password: "password1",
+      passwordConfirm: "password1",
       marketingOptIn: false,
     });
     expect(reg.status).toBe(201);
@@ -246,8 +246,8 @@ describe("invio email non bloccante", function () {
     const registerResponse = await context.client.post("/api/auth/register", {
       username: "Mail Failure",
       email: "mail.failure@example.com",
-      password: "pippo",
-      passwordConfirm: "pippo",
+      password: "password4",
+      passwordConfirm: "password4",
       marketingOptIn: false,
     });
 

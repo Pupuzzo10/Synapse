@@ -227,6 +227,7 @@
     }
     if (!/\S+@\S+\.\S+/.test(email)) return "Inserisci un indirizzo email valido.";
     if (!password) return "Inserisci una password.";
+    if (password.length < 8) return "La password deve contenere almeno 8 caratteri.";
     if (password !== passwordConfirm) return "Le password non coincidono.";
     return "";
   }

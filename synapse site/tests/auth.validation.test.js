@@ -15,12 +15,12 @@ describe("validazione autenticazione", function () {
     expect(result.data.marketingOptIn).toBe(true);
   });
 
-  it("accetta qualsiasi password non vuota (nessun vincolo di complessita')", function () {
+  it("accetta password di almeno 8 caratteri senza vincoli di complessita'", function () {
     const result = parseRegisterInput({
       username: "Synapse User",
       email: "user@example.com",
-      password: "ciao",
-      passwordConfirm: "ciao",
+      password: "password1",
+      passwordConfirm: "password1",
       marketingOptIn: false,
     });
 
@@ -31,8 +31,8 @@ describe("validazione autenticazione", function () {
     const result = parseRegisterInput({
       username: "Synapse User",
       email: "user@example.com",
-      password: "ciao",
-      passwordConfirm: "mondo",
+      password: "password1",
+      passwordConfirm: "password2",
       marketingOptIn: false,
     });
 

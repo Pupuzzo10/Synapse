@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Synapse — Bot Discord personalizzati, hosting e loghi su misura. Listino ufficiale e supporto professionale." />
-  <title>Synapse — Bot Discord, Hosting &amp; Loghi</title>
+  <title>Synapse — Bot Discord, Siti Web, Hosting &amp; Loghi</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
@@ -38,6 +38,8 @@
         <a href="#hosting">Hosting</a>
         <a href="#codice">Codice</a>
         <a href="#loghi">Loghi</a>
+        <a href="#siti-web">Siti web</a>
+        <a href="#recensioni">Recensioni</a>
         <span class="nav-auth-wrap">
           <button type="button" class="nav-auth-open" id="open-auth-modal">Accedi</button>
           <span class="nav-user" id="nav-user-wrap" hidden>
@@ -82,6 +84,24 @@
         <p class="section-intro" id="about-intro"></p>
         <ul class="feature-list" id="about-features"></ul>
         <p class="muted" id="about-footer"></p>
+      </div>
+    </section>
+
+
+
+    <section id="recensioni" class="section reviews-section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="reviews-title"></h2>
+          <p class="section-intro" id="reviews-intro"></p>
+        </div>
+        <div class="reviews-summary">
+          <span class="review-stars-static" aria-hidden="true">★★★★★</span>
+          <span id="reviews-rating-text"></span>
+        </div>
+        <div class="reviews-marquee" aria-label="Recensioni clienti">
+          <div class="reviews-track" id="reviews-track"></div>
+        </div>
       </div>
     </section>
 
@@ -165,6 +185,39 @@
       </div>
     </section>
 
+
+
+    <section id="siti-web" class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="websites-title"></h2>
+          <p class="section-intro" id="websites-intro"></p>
+        </div>
+        <div class="cards cards-websites" id="websites-cards"></div>
+        <div class="subsection">
+          <h3 id="websites-extras-title"></h3>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr><th>Extra</th><th>Prezzo</th><th>Note</th></tr>
+              </thead>
+              <tbody id="websites-extras-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="custom-services" class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="custom-services-title"></h2>
+          <p class="section-intro" id="custom-services-intro"></p>
+        </div>
+        <div class="cards cards-custom-services" id="custom-services-cards"></div>
+      </div>
+    </section>
+
     <section id="ordine" class="section cta-section">
       <div class="container cta-inner">
         <h2>Come ordinare</h2>
@@ -176,7 +229,7 @@
 
   <footer class="site-footer">
     <div class="container footer-inner">
-      <p><strong>Synapse</strong> — Bot, hosting &amp; loghi</p>
+      <p><strong>Synapse</strong> — Bot, siti web, hosting &amp; loghi</p>
       <p class="footer-links">
         <a href="https://discord.gg/FU9WuQcqeB" target="_blank" rel="noopener noreferrer">Discord</a>
         <span class="footer-sep" aria-hidden="true">·</span>
@@ -232,7 +285,8 @@
             </label>
             <label class="auth-field">
               <span class="auth-label">Password</span>
-              <input type="password" name="password" required maxlength="72" autocomplete="new-password" />
+              <input type="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password" />
+              <span class="auth-hint">Almeno 8 caratteri. Usa una password che non riutilizzi altrove.</span>
             </label>
             <label class="auth-field">
               <span class="auth-label">Conferma password</span>
@@ -304,6 +358,7 @@
             <li>Lo sviluppo del bot inizia solo dopo la conferma del pagamento.</li>
             <li>I metodi di pagamento vengono comunicati privatamente.</li>
             <li>I prezzi sono indicati nel listino ufficiale.</li>
+            <li>Eventuali sconti possono essere applicati solo a discrezione dello staff e sempre entro un tetto limite deciso internamente.</li>
             <li>La fattura può essere richiesta prima o dopo il pagamento.</li>
           </ul>
           <h4>Comandi non utilizzati</h4>
@@ -321,8 +376,9 @@
           <h3>5. Politica sui rimborsi</h3>
           <ul>
             <li>Non sono previsti rimborsi dopo l’avvio o completamento dello sviluppo.</li>
+            <li>Synapse si riserva il diritto di non concedere recesso o rimborso quando il servizio è già stato confermato, avviato, consegnato o personalizzato.</li>
             <li>In caso di problemi tecnici, viene fornita assistenza entro i limiti del servizio acquistato.</li>
-            <li>Non sono previsti rimborsi per errori dovuti a richieste incomplete o modifiche successive.</li>
+            <li>Non sono previsti rimborsi per errori dovuti a richieste incomplete, cambi idea o modifiche successive non concordate.</li>
           </ul>
         </section>
 
@@ -515,7 +571,13 @@
           <input type="checkbox" id="chat-perm-send" />
           <span>Permetti scrittura all'utente</span>
         </label>
+        <div class="chat-close-actions" aria-label="Termina conversazione">
+          <span>Termina conversazione</span>
+          <button type="button" class="btn btn-ghost chat-close-resolved" id="chat-close-resolved">Risolto</button>
+          <button type="button" class="btn btn-ghost chat-close-unresolved" id="chat-close-unresolved">Non risolto</button>
+        </div>
       </div>
+      <p class="chat-closure-banner" id="chat-closure-banner" hidden></p>
       <div class="chat-messages" id="chat-messages"></div>
       <form class="chat-form" id="chat-form">
         <textarea id="chat-input" rows="2" maxlength="4000" placeholder="Scrivi un messaggio..."></textarea>

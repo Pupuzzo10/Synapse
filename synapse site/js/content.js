@@ -228,6 +228,103 @@
     if (footer) footer.textContent = p.footer || "";
   }
 
+
+
+  function renderWebsiteCard(plan) {
+    var card = el("article", { class: "card card-website" + (plan.featured ? " card-featured" : "") });
+    if (plan.badge) card.appendChild(el("span", { class: "badge", text: plan.badge }));
+    card.appendChild(el("h3", { text: plan.name || "" }));
+    if (plan.tagline) card.appendChild(el("p", { class: "card-tagline", text: plan.tagline }));
+    var priceP = el("p", { class: "price" });
+    priceP.appendChild(el("span", { class: "currency", text: "€" }));
+    priceP.appendChild(document.createTextNode(plan.price || ""));
+    card.appendChild(priceP);
+    var ul = el("ul", { class: "bullet-list" });
+    (plan.features || []).forEach(function (f) { ul.appendChild(el("li", { text: f.text || "" })); });
+    card.appendChild(ul);
+    if (plan.recommendedFor) card.appendChild(el("p", { class: "muted small", text: "Consigliato per: " + plan.recommendedFor }));
+    return card;
+  }
+
+  function renderWebsites(w) {
+    var title = document.getElementById("websites-title");
+    var intro = document.getElementById("websites-intro");
+    var cards = document.getElementById("websites-cards");
+    var extrasTitle = document.getElementById("websites-extras-title");
+    var extrasBody = document.getElementById("websites-extras-tbody");
+    if (title) title.textContent = w.title || "";
+    if (intro) intro.textContent = w.intro || "";
+    if (cards) {
+      clear(cards);
+      (w.plans || []).forEach(function (p) { cards.appendChild(renderWebsiteCard(p)); });
+    }
+    if (extrasTitle) extrasTitle.textContent = w.extrasTitle || "Servizi extra opzionali";
+    if (extrasBody) {
+      clear(extrasBody);
+      (w.extras || []).forEach(function (r) {
+        var tr = el("tr");
+        tr.appendChild(el("td", { text: r.name || "" }));
+        tr.appendChild(el("td", { text: r.price || "" }));
+        tr.appendChild(el("td", { text: r.note || "" }));
+        extrasBody.appendChild(tr);
+      });
+    }
+  }
+
+  function renderCustomServices(c) {
+    var section = document.getElementById("custom-services");
+    var title = document.getElementById("custom-services-title");
+    var intro = document.getElementById("custom-services-intro");
+    var cards = document.getElementById("custom-services-cards");
+    var services = c.services || [];
+    if (section) section.hidden = !services.length;
+    if (title) title.textContent = c.title || "";
+    if (intro) intro.textContent = c.intro || "";
+    if (cards) {
+      clear(cards);
+      services.forEach(function (svc) {
+        var card = el("article", { class: "card card-custom-service" });
+        if (svc.badge) card.appendChild(el("span", { class: "badge", text: svc.badge }));
+        card.appendChild(el("h3", { text: svc.title || "" }));
+        if (svc.description) card.appendChild(el("p", { class: "card-tagline", text: svc.description }));
+        if (svc.price) card.appendChild(el("p", { class: "custom-service-price", text: svc.price }));
+        var ul = el("ul", { class: "bullet-list" });
+        (svc.features || []).forEach(function (t) { ul.appendChild(el("li", { text: t || "" })); });
+        card.appendChild(ul);
+        cards.appendChild(card);
+      });
+    }
+  }
+
+  function stars(rating) {
+    var n = Math.max(0, Math.min(5, Math.round(Number(rating) || 5)));
+    var out = "";
+    for (var i = 0; i < 5; i++) out += i < n ? "★" : "☆";
+    return out;
+  }
+
+  function renderReviews(r) {
+    var title = document.getElementById("reviews-title");
+    var intro = document.getElementById("reviews-intro");
+    var ratingText = document.getElementById("reviews-rating-text");
+    var track = document.getElementById("reviews-track");
+    var items = r.items || [];
+    if (title) title.textContent = r.title || "";
+    if (intro) intro.textContent = r.intro || "";
+    if (ratingText) ratingText.textContent = r.ratingText || "";
+    if (track) {
+      clear(track);
+      var duplicated = items.concat(items);
+      duplicated.forEach(function (item) {
+        var card = el("article", { class: "review-card" });
+        card.appendChild(el("p", { class: "review-stars", text: stars(item.rating) }));
+        card.appendChild(el("p", { class: "review-text", text: item.text || "" }));
+        card.appendChild(el("p", { class: "review-name", text: item.name || "Cliente" }));
+        track.appendChild(card);
+      });
+    }
+  }
+
   function renderStatus(s) {
     var dot = document.getElementById("status-dot");
     var label = document.getElementById("status-label");
@@ -265,6 +362,9 @@
       if (content.code) renderCode(content.code);
       if (content.notes) renderNotes(content.notes);
       if (content.logos) renderLogos(content.logos);
+      if (content.websites) renderWebsites(content.websites);
+      if (content.customServices) renderCustomServices(content.customServices);
+      if (content.reviews) renderReviews(content.reviews);
       if (content.promotions) renderPromotions(content.promotions);
       renderStatus(status);
       window.SynapseContent = { content: content, status: status };
@@ -282,6 +382,9 @@
     if (content.code) renderCode(content.code);
     if (content.notes) renderNotes(content.notes);
     if (content.logos) renderLogos(content.logos);
+    if (content.websites) renderWebsites(content.websites);
+    if (content.customServices) renderCustomServices(content.customServices);
+    if (content.reviews) renderReviews(content.reviews);
     if (content.promotions) renderPromotions(content.promotions);
     var current = window.SynapseContent || {};
     current.content = content;
@@ -345,6 +448,12 @@
       try {
         var payload = JSON.parse(ev.data);
         document.dispatchEvent(new CustomEvent("synapse:staff-presence", { detail: payload }));
+      } catch (_e) { /* ignore */ }
+    });
+    src.addEventListener("presence", function (ev) {
+      try {
+        var payload = JSON.parse(ev.data);
+        document.dispatchEvent(new CustomEvent("synapse:presence", { detail: payload }));
       } catch (_e) { /* ignore */ }
     });
   }

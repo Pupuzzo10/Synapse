@@ -267,6 +267,199 @@
     return box;
   }
 
+
+
+  function tab_websites() {
+    var w = workingContent.websites = workingContent.websites || { plans: [], extras: [] };
+    w.plans = w.plans || [];
+    w.extras = w.extras || [];
+    var box = el("div");
+    box.appendChild(field("Titolo sezione", textInput(w.title, function (v) { w.title = v; })));
+    box.appendChild(field("Intro sezione", textarea(w.intro, function (v) { w.intro = v; })));
+    w.plans.forEach(function (plan, idx) {
+      plan.features = plan.features || [];
+      var card = el("div", { class: "admin-card-wrap" });
+      card.appendChild(el("h4", { text: "Pacchetto sito " + (idx + 1) }));
+      card.appendChild(field("Nome", textInput(plan.name, function (v) { plan.name = v; })));
+      card.appendChild(field("Prezzo (senza €)", textInput(plan.price, function (v) { plan.price = v; })));
+      card.appendChild(field("Badge", textInput(plan.badge, function (v) { plan.badge = v; })));
+      card.appendChild(field("Frase breve", textInput(plan.tagline, function (v) { plan.tagline = v; })));
+      card.appendChild(field("Consigliato per", textarea(plan.recommendedFor, function (v) { plan.recommendedFor = v; })));
+      card.appendChild(field("In evidenza", checkbox(plan.featured, function (v) { plan.featured = v; })));
+      var feats = el("div", { class: "admin-sublist" });
+      feats.appendChild(el("h5", { text: "Cosa include" }));
+      plan.features.forEach(function (f, i) {
+        var row = el("div", { class: "admin-row" });
+        row.appendChild(textInput(f.text, function (v) { f.text = v; }));
+        row.appendChild(el("button", { type: "button", class: "admin-btn-remove", text: "×", onclick: function () { plan.features.splice(i, 1); renderActiveTab(); } }));
+        feats.appendChild(row);
+      });
+      feats.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ voce", onclick: function () { plan.features.push({ text: "Nuova voce" }); renderActiveTab(); } }));
+      card.appendChild(feats);
+      card.appendChild(el("button", { type: "button", class: "admin-btn-remove-card", text: "Rimuovi pacchetto", onclick: function () { w.plans.splice(idx, 1); renderActiveTab(); } }));
+      box.appendChild(card);
+    });
+    box.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ aggiungi pacchetto sito", onclick: function () {
+      w.plans.push({ name: "Nuovo pacchetto sito", price: "0,00", badge: "", featured: false, tagline: "", recommendedFor: "", features: [{ text: "Voce inclusa" }] });
+      renderActiveTab();
+    } }));
+
+    var extrasBox = el("div", { class: "admin-sublist" });
+    extrasBox.appendChild(el("h4", { text: "Servizi extra" }));
+    extrasBox.appendChild(field("Titolo extra", textInput(w.extrasTitle, function (v) { w.extrasTitle = v; })));
+    w.extras.forEach(function (r, i) {
+      var row = el("div", { class: "admin-row" });
+      row.appendChild(textInput(r.name, function (v) { r.name = v; }));
+      row.appendChild(textInput(r.price, function (v) { r.price = v; }));
+      row.appendChild(textInput(r.note, function (v) { r.note = v; }));
+      row.appendChild(el("button", { type: "button", class: "admin-btn-remove", text: "×", onclick: function () { w.extras.splice(i, 1); renderActiveTab(); } }));
+      extrasBox.appendChild(row);
+    });
+    extrasBox.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ extra", onclick: function () { w.extras.push({ name: "Nuovo extra", price: "", note: "" }); renderActiveTab(); } }));
+    box.appendChild(extrasBox);
+    return box;
+  }
+
+  function tab_customServices() {
+    var c = workingContent.customServices = workingContent.customServices || { services: [] };
+    c.services = c.services || [];
+    var box = el("div");
+    box.appendChild(field("Titolo sezione", textInput(c.title, function (v) { c.title = v; })));
+    box.appendChild(field("Intro sezione", textarea(c.intro, function (v) { c.intro = v; })));
+    c.services.forEach(function (svc, idx) {
+      svc.features = svc.features || [];
+      var card = el("div", { class: "admin-card-wrap" });
+      card.appendChild(el("h4", { text: "Servizio " + (idx + 1) }));
+      card.appendChild(field("Titolo", textInput(svc.title, function (v) { svc.title = v; })));
+      card.appendChild(field("Descrizione", textarea(svc.description, function (v) { svc.description = v; })));
+      card.appendChild(field("Prezzo", textInput(svc.price, function (v) { svc.price = v; })));
+      card.appendChild(field("Badge", textInput(svc.badge, function (v) { svc.badge = v; })));
+      var feats = el("div", { class: "admin-sublist" });
+      feats.appendChild(el("h5", { text: "Voci incluse" }));
+      svc.features.forEach(function (t, i) {
+        var row = el("div", { class: "admin-row" });
+        row.appendChild(textInput(t, function (v) { svc.features[i] = v; }));
+        row.appendChild(el("button", { type: "button", class: "admin-btn-remove", text: "×", onclick: function () { svc.features.splice(i, 1); renderActiveTab(); } }));
+        feats.appendChild(row);
+      });
+      feats.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ voce", onclick: function () { svc.features.push("Nuova voce"); renderActiveTab(); } }));
+      card.appendChild(feats);
+      card.appendChild(el("button", { type: "button", class: "admin-btn-remove-card", text: "Rimuovi servizio", onclick: function () { c.services.splice(idx, 1); renderActiveTab(); } }));
+      box.appendChild(card);
+    });
+    box.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ aggiungi servizio", onclick: function () { c.services.push({ title: "Nuovo servizio", description: "", price: "Su richiesta", badge: "", features: ["Voce inclusa"] }); renderActiveTab(); } }));
+    return box;
+  }
+
+  function tab_reviews() {
+    var r = workingContent.reviews = workingContent.reviews || { items: [] };
+    r.items = r.items || [];
+    var box = el("div");
+    box.appendChild(field("Titolo sezione", textInput(r.title, function (v) { r.title = v; })));
+    box.appendChild(field("Intro sezione", textarea(r.intro, function (v) { r.intro = v; })));
+    box.appendChild(field("Testo valutazione", textInput(r.ratingText, function (v) { r.ratingText = v; })));
+    r.items.forEach(function (item, idx) {
+      var card = el("div", { class: "admin-card-wrap" });
+      card.appendChild(el("h4", { text: "Recensione " + (idx + 1) }));
+      card.appendChild(field("Nome", textInput(item.name, function (v) { item.name = v; })));
+      card.appendChild(field("Stelle (1-5)", textInput(String(item.rating || 5), function (v) { item.rating = v; })));
+      card.appendChild(field("Testo", textarea(item.text, function (v) { item.text = v; })));
+      card.appendChild(el("button", { type: "button", class: "admin-btn-remove-card", text: "Rimuovi recensione", onclick: function () { r.items.splice(idx, 1); renderActiveTab(); } }));
+      box.appendChild(card);
+    });
+    box.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ aggiungi recensione", onclick: function () { r.items.push({ name: "Cliente", rating: 5, text: "Ottimo servizio." }); renderActiveTab(); } }));
+    return box;
+  }
+
+  var presenceCache = { clients: [], total: 0, online: false };
+  function timeAgo(iso) {
+    if (!iso) return "—";
+    var seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+    if (seconds < 60) return seconds + "s fa";
+    var minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes + "m fa";
+    var hours = Math.round(minutes / 60);
+    return hours + "h fa";
+  }
+  function loadPresence(after) {
+    fetch(appBaseUrl + "/api/presence", { headers: authHeaders({ Accept: "application/json" }) })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) presenceCache = data.presence || presenceCache;
+        if (typeof after === "function") after();
+        if (activeTab === "presence") renderActiveTab();
+      })
+      .catch(function () { /* ignore */ });
+  }
+  function tab_presence() {
+    var box = el("div");
+    var head = el("div", { class: "admin-tickets-head" });
+    head.appendChild(el("h3", { text: "Utenti attivi in tempo reale", style: "margin:0" }));
+    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadPresence(); } }));
+    box.appendChild(head);
+    box.appendChild(el("p", { class: "muted small", text: "Connessioni attive: " + (presenceCache.total || 0) + " · Admin online: " + (presenceCache.online ? "sì" : "no") }));
+    var list = el("div", { class: "admin-presence-list" });
+    (presenceCache.clients || []).forEach(function (c) {
+      var row = el("div", { class: "admin-presence-row" });
+      row.appendChild(el("strong", { text: (c.username || "Visitatore") + (c.isAdmin ? " · Admin" : "") }));
+      row.appendChild(el("span", { text: c.email || (c.userId ? "Account #" + c.userId : "Non registrato") }));
+      row.appendChild(el("span", { text: "Sezione: " + (c.page || "Sito") }));
+      row.appendChild(el("span", { text: "Ultima attività: " + timeAgo(c.lastSeenAt) }));
+      list.appendChild(row);
+    });
+    if (!(presenceCache.clients || []).length) list.appendChild(el("p", { class: "muted small", text: "Nessuna connessione rilevata." }));
+    box.appendChild(list);
+    return box;
+  }
+
+  var usersCache = [];
+  function loadUsers(after) {
+    fetch(appBaseUrl + "/api/admin/users", { headers: authHeaders({ Accept: "application/json" }) })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) usersCache = data.users || [];
+        if (typeof after === "function") after();
+        if (activeTab === "adminAccounts") renderActiveTab();
+      })
+      .catch(function () { /* ignore */ });
+  }
+  function tab_adminAccounts() {
+    var state = tab_adminAccounts.state = tab_adminAccounts.state || { username: "", email: "", password: "" };
+    var box = el("div");
+    box.appendChild(el("h3", { text: "Account amministratori" }));
+    box.appendChild(field("Nome utente nuovo admin", textInput(state.username, function (v) { state.username = v; })));
+    box.appendChild(field("Email nuovo admin", textInput(state.email, function (v) { state.email = v; })));
+    var pass = el("input", { type: "password", value: state.password || "", minlength: "8", maxlength: "72", oninput: function (e) { state.password = e.target.value; } });
+    box.appendChild(field("Password nuovo admin", pass));
+    box.appendChild(el("p", { class: "muted small", text: "La password deve avere almeno 8 caratteri. L'account creato sarà subito admin e verificato." }));
+    box.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Crea account admin", onclick: function () {
+      fetch(appBaseUrl + "/api/admin/users/admin", {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+        body: JSON.stringify(state),
+      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (resp) {
+          if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Errore"); return; }
+          tab_adminAccounts.state = { username: "", email: "", password: "" };
+          loadUsers();
+        });
+    } }));
+    var list = el("div", { class: "admin-users-list" });
+    (usersCache || []).forEach(function (u) {
+      var row = el("div", { class: "admin-user-row" });
+      row.appendChild(el("strong", { text: u.username + (u.isAdmin ? " · Admin" : "") }));
+      row.appendChild(el("span", { text: u.email }));
+      row.appendChild(el("span", { text: "Creato: " + new Date(u.createdAt).toLocaleString() }));
+      list.appendChild(row);
+    });
+    if (!usersCache.length) {
+      list.appendChild(el("p", { class: "muted small", text: "Caricamento account..." }));
+      loadUsers();
+    }
+    box.appendChild(list);
+    return box;
+  }
+
   // === TAB SEGNALAZIONI (gestita lato server, non parte di workingContent) ===
   var ticketsCache = [];
   function ticketStatusLabel(s) {
@@ -380,9 +573,14 @@
     { id: "hosting", label: "Hosting", render: tab_hosting },
     { id: "code", label: "Codice", render: tab_code },
     { id: "logos", label: "Loghi", render: tab_logos },
+    { id: "websites", label: "Siti web", render: tab_websites },
+    { id: "customServices", label: "Altri servizi", render: tab_customServices },
+    { id: "reviews", label: "Recensioni", render: tab_reviews },
     { id: "notes", label: "Note", render: tab_notes },
     { id: "promotions", label: "Promozioni", render: tab_promotions },
     { id: "tickets", label: "Segnalazioni", render: tab_tickets },
+    { id: "presence", label: "Presenza live", render: tab_presence },
+    { id: "adminAccounts", label: "Account admin", render: tab_adminAccounts },
     { id: "status", label: "Stato servizio", render: tab_status },
   ];
 
@@ -467,11 +665,16 @@
   document.addEventListener("synapse:auth-changed", function (ev) {
     var user = ev.detail && ev.detail.user;
     if (openBtn) openBtn.hidden = !(user && user.isAdmin);
-    if (user && user.isAdmin) loadTickets();
+    if (user && user.isAdmin) { loadTickets(); loadPresence(); loadUsers(); }
   });
 
   // Aggiornamenti realtime dei ticket per l'admin
   document.addEventListener("synapse:tickets-changed", function () {
     loadTickets();
+  });
+
+  document.addEventListener("synapse:presence", function (ev) {
+    presenceCache = ev.detail || presenceCache;
+    if (activeTab === "presence") renderActiveTab();
   });
 })();

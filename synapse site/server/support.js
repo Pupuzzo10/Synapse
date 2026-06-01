@@ -6,7 +6,7 @@ const CHAT_STATUSES = ["open", "paused", "suspended", "closed"];
 // Motivi di chiusura conversazione (decisi dall'admin via "Termina conversazione")
 const CLOSURE_REASONS = {
   resolved:  { label: "Risolto",   chatStatus: "closed",    ticketStatus: "closed"   },
-  unresolved:{ label: "Irrisolto", chatStatus: "closed",    ticketStatus: "closed"   },
+  unresolved:{ label: "Non risolto", chatStatus: "closed",    ticketStatus: "closed"   },
   suspended: { label: "Sospesa",   chatStatus: "suspended", ticketStatus: "in_chat"  },
   declined:  { label: "Declinata", chatStatus: "closed",    ticketStatus: "declined" },
 };
@@ -132,7 +132,16 @@ function createSupport(authDb) {
     `),
     updateChatStatus: db.prepare(`
       UPDATE chats SET status = @status, updated_at = @now,
-        closed_at = CASE WHEN @status = 'closed' THEN @now ELSE closed_at END
+        closed_at = CASE WHEN @status = 'closed' THEN @now ELSE NULL END,
+        closure_reason = CASE WHEN @status = 'closed' THEN closure_reason ELSE NULL END
+      WHERE id = @id
+    `),
+    closeChat: db.prepare(`
+      UPDATE chats SET
+        status = @chat_status,
+        closure_reason = @closure_reason,
+        closed_at = @now,
+        updated_at = @now
       WHERE id = @id
     `),
     updateChatPermissions: db.prepare(`
@@ -201,6 +210,30 @@ function createSupport(authDb) {
     return getChat(id);
   }
 
+  const closeChatTx = db.transaction(function (id, reason) {
+    const cfg = CLOSURE_REASONS[reason];
+    if (!cfg || (reason !== "resolved" && reason !== "unresolved")) {
+      throw new Error("Classificazione chiusura non valida");
+    }
+    const chat = getChat(id);
+    if (!chat) return null;
+    const now = nowIso();
+    stmts.closeChat.run({
+      id,
+      chat_status: cfg.chatStatus,
+      closure_reason: reason,
+      now,
+    });
+    if (chat.ticketId && cfg.ticketStatus) {
+      stmts.updateTicketStatus.run({ id: chat.ticketId, status: cfg.ticketStatus, now });
+    }
+    return getChat(id);
+  });
+
+  function closeChat(id, reason) {
+    return closeChatTx(id, reason);
+  }
+
   function setChatPermissions(id, userCanSend) {
     stmts.updateChatPermissions.run({ id, user_can_send: userCanSend ? 1 : 0, now: nowIso() });
     return getChat(id);
@@ -232,6 +265,7 @@ function createSupport(authDb) {
   return {
     TICKET_STATUSES,
     CHAT_STATUSES,
+    CLOSURE_REASONS,
     createTicket,
     getTicket,
     listAllTickets,
@@ -243,6 +277,7 @@ function createSupport(authDb) {
     listAllChats,
     listChatsByUser,
     setChatStatus,
+    closeChat,
     setChatPermissions,
     postMessage,
     listMessages,

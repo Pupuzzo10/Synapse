@@ -21,6 +21,9 @@
   var adminControls = document.getElementById("chat-admin-controls");
   var statusSelect = document.getElementById("chat-status-select");
   var permCheckbox = document.getElementById("chat-perm-send");
+  var closeResolvedBtn = document.getElementById("chat-close-resolved");
+  var closeUnresolvedBtn = document.getElementById("chat-close-unresolved");
+  var closureBanner = document.getElementById("chat-closure-banner");
 
   var currentUser = null;
   var currentChat = null;
@@ -74,8 +77,17 @@
       : (currentChat.adminUsername || "Supporto");
     if (titleEl) titleEl.textContent = "Chat con " + partnerName;
     if (statusPill) {
-      statusPill.textContent = statusLabel(currentChat.status);
+      statusPill.textContent = currentChat.closureReasonLabel ? statusLabel(currentChat.status) + " · " + currentChat.closureReasonLabel : statusLabel(currentChat.status);
       statusPill.setAttribute("data-status", currentChat.status);
+    }
+    if (closureBanner) {
+      if (currentChat.closureReasonLabel) {
+        closureBanner.textContent = "Conversazione conclusa: " + currentChat.closureReasonLabel + ".";
+        closureBanner.hidden = false;
+      } else {
+        closureBanner.textContent = "";
+        closureBanner.hidden = true;
+      }
     }
     if (adminControls) {
       adminControls.hidden = !isAdmin;
@@ -158,6 +170,24 @@
       });
   }
 
+
+  function closeConversation(reason) {
+    if (!currentChat) return;
+    var label = reason === "resolved" ? "Risolto" : "Non risolto";
+    if (!confirm("Chiudere la chat come " + label + "?")) return;
+    fetch(appBaseUrl + "/api/chats/" + currentChat.id + "/close", {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+      body: JSON.stringify({ reason: reason }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) { currentChat = data.chat; applyChatMeta(); }
+        else alert(data.message || "Errore");
+      })
+      .catch(function (err) { alert("Errore: " + err.message); });
+  }
+
   function changePerm() {
     if (!currentChat || !permCheckbox) return;
     fetch(appBaseUrl + "/api/chats/" + currentChat.id + "/permissions", {
@@ -189,6 +219,8 @@
   });
   if (statusSelect) statusSelect.addEventListener("change", changeStatus);
   if (permCheckbox) permCheckbox.addEventListener("change", changePerm);
+  if (closeResolvedBtn) closeResolvedBtn.addEventListener("click", function () { closeConversation("resolved"); });
+  if (closeUnresolvedBtn) closeUnresolvedBtn.addEventListener("click", function () { closeConversation("unresolved"); });
 
   document.addEventListener("synapse:auth-changed", function (ev) {
     currentUser = (ev.detail && ev.detail.user) || null;

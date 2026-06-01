@@ -1555,3 +1555,195 @@ main {
 .nav-chat-btn:hover { background: rgba(56,189,248,0.28); }
 .nav-chat-btn[hidden] { display: none !important; }
 .nav-report-btn[hidden] { display: none !important; }
+
+/* === Addizioni Synapse: siti web, recensioni, servizi dinamici e admin live === */
+.cards-websites,
+.cards-custom-services {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.card-website,
+.card-custom-service {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card-tagline {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.custom-service-price {
+  font-family: var(--font-mono);
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  width: fit-content;
+  margin: 0;
+}
+
+.reviews-section {
+  overflow: hidden;
+}
+
+.reviews-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  margin-bottom: 1.25rem;
+}
+
+.review-stars-static,
+.review-stars {
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+
+.reviews-marquee {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+}
+
+.reviews-track {
+  display: flex;
+  gap: 1rem;
+  width: max-content;
+  animation: reviews-scroll-right 28s linear infinite;
+}
+
+.reviews-marquee:hover .reviews-track {
+  animation-play-state: paused;
+}
+
+.review-card {
+  width: min(320px, 78vw);
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
+  padding: 1rem;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+}
+
+.review-stars,
+.review-name,
+.review-text {
+  margin: 0;
+}
+
+.review-text {
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.review-name {
+  color: var(--text);
+  font-weight: 600;
+  margin-top: 0.85rem;
+}
+
+@keyframes reviews-scroll-right {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+
+.nav a {
+  position: relative;
+}
+
+.nav a:not(.nav-cta)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.25rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0;
+  transform: scaleX(0.4);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.nav a:not(.nav-cta):hover::after {
+  opacity: 0.7;
+  transform: scaleX(1);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.chat-closure-banner {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.chat-close-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.chat-close-actions .btn {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+.admin-presence-list,
+.admin-users-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.admin-presence-row,
+.admin-user-row {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.035);
+}
+
+.admin-presence-row span,
+.admin-user-row span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reviews-track,
+  .reveal {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
