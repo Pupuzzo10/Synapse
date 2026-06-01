@@ -29,6 +29,13 @@ function rowToTicket(row) {
     adminReply: row.admin_reply,
     chatId: row.chat_id,
     ip: row.ip || null,
+    customerName: row.customer_name || null,
+    customerPhone: row.customer_phone || null,
+    customerDiscord: row.customer_discord || null,
+    paymentMethod: row.payment_method || null,
+    paymentStatus: row.payment_status || null,
+    serviceDetails: row.service_details || null,
+    price: row.price || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     username: row.username || null,
@@ -44,8 +51,6 @@ function rowToChat(row) {
     adminId: row.admin_id,
     status: row.status,
     userCanSend: !!row.user_can_send,
-    needsAdmin: !!row.needs_admin,
-    aiEnabled: !!row.ai_enabled,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     closedAt: row.closed_at,
@@ -76,8 +81,8 @@ function createSupport(authDb) {
 
   const stmts = {
     insertTicket: db.prepare(`
-      INSERT INTO tickets (user_id, email, message, subject, category, product_name, status, ip, created_at, updated_at)
-      VALUES (@user_id, @email, @message, @subject, @category, @product_name, 'pending', @ip, @now, @now)
+      INSERT INTO tickets (user_id, email, message, subject, category, product_name, customer_name, customer_phone, customer_discord, payment_method, payment_status, service_details, price, status, ip, created_at, updated_at)
+      VALUES (@user_id, @email, @message, @subject, @category, @product_name, @customer_name, @customer_phone, @customer_discord, @payment_method, @payment_status, @service_details, @price, 'pending', @ip, @now, @now)
     `),
     findTicketById: db.prepare(`
       SELECT t.*, u.username FROM tickets t
@@ -94,7 +99,7 @@ function createSupport(authDb) {
     listTicketsByUser: db.prepare(`
       SELECT t.*, u.username FROM tickets t
       LEFT JOIN users u ON u.id = t.user_id
-      WHERE t.user_id = ? AND t.status NOT IN ('closed', 'declined')
+      WHERE t.user_id = ?
       ORDER BY t.created_at DESC
     `),
     countActiveTicketsByUser: db.prepare(`
@@ -113,8 +118,8 @@ function createSupport(authDb) {
     `),
 
     insertChat: db.prepare(`
-      INSERT INTO chats (ticket_id, user_id, admin_id, status, user_can_send, needs_admin, ai_enabled, created_at, updated_at)
-      VALUES (@ticket_id, @user_id, @admin_id, 'open', 1, 0, 1, @now, @now)
+      INSERT INTO chats (ticket_id, user_id, admin_id, status, user_can_send, created_at, updated_at)
+      VALUES (@ticket_id, @user_id, @admin_id, 'open', 1, @now, @now)
     `),
     findChatById: db.prepare(`
       SELECT c.*, u.username, u.email AS user_email, a.username AS admin_username
@@ -158,15 +163,6 @@ function createSupport(authDb) {
     updateChatPermissions: db.prepare(`
       UPDATE chats SET user_can_send = @user_can_send, updated_at = @now WHERE id = @id
     `),
-    updateChatNeedsAdmin: db.prepare(`
-      UPDATE chats SET needs_admin = @needs_admin, ai_enabled = @ai_enabled, updated_at = @now WHERE id = @id
-    `),
-    disableAiForChat: db.prepare(`
-      UPDATE chats SET ai_enabled = 0, needs_admin = 0, updated_at = @now WHERE id = @id
-    `),
-    touchChat: db.prepare(`
-      UPDATE chats SET updated_at = @now WHERE id = @id
-    `),
 
     insertMessage: db.prepare(`
       INSERT INTO chat_messages (chat_id, sender_id, sender_role, content, created_at)
@@ -177,7 +173,7 @@ function createSupport(authDb) {
     `),
   };
 
-  function createTicket({ userId, email, message, subject, category, productName, ip }) {
+  function createTicket({ userId, email, message, subject, category, productName, customerName, customerPhone, customerDiscord, paymentMethod, paymentStatus, serviceDetails, price, ip }) {
     const result = stmts.insertTicket.run({
       user_id: userId,
       email,
@@ -185,6 +181,13 @@ function createSupport(authDb) {
       subject: subject || null,
       category: category || null,
       product_name: productName || null,
+      customer_name: customerName || null,
+      customer_phone: customerPhone || null,
+      customer_discord: customerDiscord || null,
+      payment_method: paymentMethod || null,
+      payment_status: paymentStatus || null,
+      service_details: serviceDetails || null,
+      price: price || null,
       ip: ip || null,
       now: nowIso(),
     });
@@ -272,21 +275,6 @@ function createSupport(authDb) {
     return getChat(id);
   }
 
-  function markChatNeedsAdmin(id, needsAdmin) {
-    stmts.updateChatNeedsAdmin.run({
-      id,
-      needs_admin: needsAdmin ? 1 : 0,
-      ai_enabled: needsAdmin ? 0 : 1,
-      now: nowIso(),
-    });
-    return getChat(id);
-  }
-
-  function disableAiForChat(id) {
-    stmts.disableAiForChat.run({ id, now: nowIso() });
-    return getChat(id);
-  }
-
   function postMessage({ chatId, senderId, senderRole, content }) {
     const now = nowIso();
     const result = stmts.insertMessage.run({
@@ -297,7 +285,7 @@ function createSupport(authDb) {
       now,
     });
     const current = getChat(chatId);
-    if (current) stmts.touchChat.run({ id: chatId, now });
+    if (current) stmts.updateChatStatus.run({ id: chatId, status: current.status, now });
     return rowToMessage({
       id: result.lastInsertRowid,
       chat_id: chatId,
@@ -330,8 +318,6 @@ function createSupport(authDb) {
     setChatStatus,
     closeChat,
     setChatPermissions,
-    markChatNeedsAdmin,
-    disableAiForChat,
     postMessage,
     listMessages,
   };

@@ -14,10 +14,6 @@ const { createSessionMiddleware, requireCsrf } = require("./session-store");
 const adminOps = require("./admin-ops");
 const { createBroadcaster } = require("./events");
 const { createSupport } = require("./support");
-const { createOrders } = require("./orders");
-const { answerSupportQuestion } = require("./ai-support");
-
-const REVOLUT_PAYMENT_LINK = "https://revolut.me/angelo2tqp";
 
 function serializeUser(user) {
   return {
@@ -262,12 +258,6 @@ function createApp(overrides = {}) {
     windowMs: 10 * 60 * 1000,
     limit: 8,
     message: "Troppi ticket inviati. Riprova tra qualche minuto.",
-  });
-
-  const orderLimiter = buildRateLimiter({
-    windowMs: 10 * 60 * 1000,
-    limit: 8,
-    message: "Troppi ordini inviati. Riprova tra qualche minuto.",
   });
 
   const chatMessageLimiter = buildRateLimiter({
@@ -520,7 +510,6 @@ function createApp(overrides = {}) {
   adminOps.seedContent(authDb);
   const broadcaster = createBroadcaster();
   const support = createSupport(authDb);
-  const orders = createOrders(authDb);
 
   app.get("/api/events", function (req, res) {
     const accountBlock = blockInfoFromUser(req.sessionUser);
@@ -629,168 +618,6 @@ function createApp(overrides = {}) {
     return ids.length ? ids[0] : null;
   }
 
-  function normalizeOrderText(value, max) {
-    return String(value == null ? "" : value).trim().slice(0, max);
-  }
-
-  function rejectCardPayload(body) {
-    body = body || {};
-    return ["cardNumber", "cardCvv", "cardCvc", "cvv", "cvc", "expiry", "cardExpiry", "cardHolder", "paymentDetails"].some(function (key) {
-      return Object.prototype.hasOwnProperty.call(body, key);
-    });
-  }
-
-  function canReadOrder(user, order) {
-    return !!(user && order && (user.is_admin || order.userId === user.id));
-  }
-
-  function orderAudience(order) {
-    return adminUserIds().concat([order.userId]);
-  }
-
-  app.post("/api/orders", orderLimiter, requireCsrf, requireAuth, function (req, res) {
-    if (rejectCardPayload(req.body)) {
-      return res.status(400).json({ ok: false, message: "Synapse non acquisisce dati carta. Completa il pagamento solo tramite Revolut ufficiale." });
-    }
-    const customerName = normalizeOrderText(req.body && req.body.customerName, 120);
-    const phone = normalizeOrderText(req.body && req.body.phone, 40);
-    const discordUsername = normalizeOrderText(req.body && req.body.discordUsername, 80);
-    const productCategory = normalizeOrderText(req.body && req.body.productCategory, 80) || "Prodotto Synapse";
-    const productName = normalizeOrderText(req.body && req.body.productName, 160);
-    const priceLabel = normalizeOrderText(req.body && req.body.priceLabel, 80) || "Da confermare";
-    if (!/^\S+\s+\S+/.test(customerName)) {
-      return res.status(400).json({ ok: false, message: "Inserisci nome e cognome." });
-    }
-    if (!phone || !/^[+()0-9\s.-]{6,40}$/.test(phone) || phone.replace(/\D/g, "").length < 6) {
-      return res.status(400).json({ ok: false, message: "Inserisci un numero di telefono valido." });
-    }
-    if (!productName) {
-      return res.status(400).json({ ok: false, message: "Prodotto non valido." });
-    }
-    const order = orders.createOrder({
-      userId: req.currentUser.id,
-      email: req.currentUser.email,
-      customerName,
-      phone,
-      discordUsername,
-      productCategory,
-      productName,
-      priceLabel,
-      paymentMethod: "Revolut",
-      paymentLink: REVOLUT_PAYMENT_LINK,
-      ip: req.clientIp,
-    });
-    broadcaster.broadcast("order:new", order, { userIds: adminUserIds() });
-    broadcaster.broadcast("order:update", order, { userIds: orderAudience(order) });
-    res.status(201).json({ ok: true, order, paymentLink: REVOLUT_PAYMENT_LINK });
-  });
-
-  app.get("/api/orders/mine", requireAuth, function (req, res) {
-    res.json({ ok: true, orders: orders.listMyOrders(req.currentUser.id) });
-  });
-
-  app.get("/api/orders", requireAdmin, function (req, res) {
-    res.json({ ok: true, orders: orders.listAllOrders() });
-  });
-
-  app.get("/api/orders/:id", requireAuth, function (req, res) {
-    const order = orders.getOrder(parseInt(req.params.id, 10));
-    if (!order) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
-    if (!canReadOrder(req.currentUser, order)) return res.status(403).json({ ok: false, message: "Non puoi vedere questo ordine." });
-    res.json({ ok: true, order });
-  });
-
-  app.post("/api/orders/:id/confirm-payment", requireCsrf, requireAuth, function (req, res) {
-    const existing = orders.getOrder(parseInt(req.params.id, 10));
-    if (!existing) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
-    if (!canReadOrder(req.currentUser, existing)) return res.status(403).json({ ok: false, message: "Non puoi modificare questo ordine." });
-    const order = orders.markPaymentConfirmed(existing.id);
-    broadcaster.broadcast("order:update", order, { userIds: orderAudience(order) });
-    res.json({ ok: true, order });
-  });
-
-  app.post("/api/orders/:id/details", requireCsrf, requireAuth, function (req, res) {
-    const existing = orders.getOrder(parseInt(req.params.id, 10));
-    if (!existing) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
-    if (!canReadOrder(req.currentUser, existing)) return res.status(403).json({ ok: false, message: "Non puoi modificare questo ordine." });
-    const serviceDetails = normalizeOrderText(req.body && req.body.serviceDetails, 15000);
-    if (serviceDetails.length < 40) {
-      return res.status(400).json({ ok: false, message: "Descrivi il servizio richiesto in modo più completo." });
-    }
-    const order = orders.saveServiceDetails(existing.id, serviceDetails);
-    broadcaster.broadcast("order:update", order, { userIds: orderAudience(order) });
-    res.json({ ok: true, order });
-  });
-
-  function broadcastChatMessage(chat, msg) {
-    if (!chat || !msg) return;
-    const audience = adminUserIds().concat([chat.userId]);
-    broadcaster.broadcast("chat:message", { chatId: chat.id, message: msg }, { userIds: audience });
-  }
-
-  function broadcastChatUpdate(chat) {
-    if (!chat) return;
-    const audience = adminUserIds().concat([chat.userId]);
-    broadcaster.broadcast("chat:update", chat, { userIds: audience });
-    if (chat.ticketId) {
-      const ticket = support.getTicket(chat.ticketId);
-      if (ticket) broadcaster.broadcast("ticket:update", ticket, { userIds: audience });
-    }
-  }
-
-  function broadcastBotTyping(chat, isTyping) {
-    if (!chat) return;
-    broadcaster.broadcast("chat:typing", {
-      chatId: chat.id,
-      userId: 0,
-      username: "Assistente AI",
-      role: "bot",
-      isTyping: !!isTyping,
-      at: new Date().toISOString(),
-    }, { userIds: adminUserIds().concat([chat.userId]) });
-  }
-
-  function postBotMessage(chatId, content) {
-    const msg = support.postMessage({
-      chatId,
-      senderId: 0,
-      senderRole: "bot",
-      content,
-    });
-    const chat = support.getChat(chatId);
-    broadcastChatMessage(chat, msg);
-    if (chat) broadcastChatUpdate(chat);
-    return { chat, msg };
-  }
-
-  async function runAiSupportReply(chatId, userMessage) {
-    let chat = support.getChat(chatId);
-    if (!chat || chat.status === "closed" || chat.status === "suspended" || !chat.aiEnabled || chat.needsAdmin) return;
-    broadcastBotTyping(chat, true);
-    try {
-      const history = support.listMessages(chat.id);
-      const ai = await answerSupportQuestion({
-        apiKey: config.ai && config.ai.anthropicApiKey,
-        model: config.ai && config.ai.anthropicModel,
-        message: userMessage,
-        history,
-        content: adminOps.getContent(authDb),
-        status: adminOps.getStatus(authDb),
-      });
-      if (ai.escalate) {
-        chat = support.markChatNeedsAdmin(chat.id, true) || chat;
-        broadcastChatUpdate(chat);
-      }
-      postBotMessage(chat.id, ai.text || "Ho chiamato un admin. Uno staffer continuerà la richiesta appena possibile.");
-    } catch (error) {
-      chat = support.markChatNeedsAdmin(chat.id, true) || chat;
-      broadcastChatUpdate(chat);
-      postBotMessage(chat.id, "In questo momento l'assistente AI non riesce a completare la richiesta. Ho chiamato un admin per continuare il supporto.");
-    } finally {
-      broadcastBotTyping(support.getChat(chatId) || chat, false);
-    }
-  }
-
   app.get("/api/content", function (req, res) {
     res.json({ ok: true, content: adminOps.getContent(authDb) });
   });
@@ -828,8 +655,28 @@ function createApp(overrides = {}) {
     const subject = req.body && typeof req.body.subject === "string" ? req.body.subject.trim().slice(0, 160) : "";
     const category = req.body && typeof req.body.category === "string" ? req.body.category.trim().slice(0, 80) : "";
     const productName = req.body && typeof req.body.productName === "string" ? req.body.productName.trim().slice(0, 160) : "";
+    const customerName = req.body && typeof req.body.customerName === "string" ? req.body.customerName.trim().slice(0, 120) : "";
+    const customerPhone = req.body && typeof req.body.customerPhone === "string" ? req.body.customerPhone.trim().slice(0, 40) : "";
+    const customerDiscord = req.body && typeof req.body.customerDiscord === "string" ? req.body.customerDiscord.trim().slice(0, 80) : "";
+    const paymentMethod = req.body && typeof req.body.paymentMethod === "string" ? req.body.paymentMethod.trim().slice(0, 40) : "";
+    const paymentStatus = req.body && typeof req.body.paymentStatus === "string" ? req.body.paymentStatus.trim().slice(0, 40) : "";
+    const serviceDetails = req.body && typeof req.body.serviceDetails === "string" ? req.body.serviceDetails.trim().slice(0, 10000) : "";
+    const price = req.body && typeof req.body.price === "string" ? req.body.price.trim().slice(0, 40) : "";
+    const isCheckout = !!(req.body && req.body.checkout);
+    const autoOpenChat = !!(req.body && req.body.autoOpenChat);
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ ok: false, message: "Email non valida." });
+    }
+    if (isCheckout) {
+      if (!customerName) {
+        return res.status(400).json({ ok: false, message: "Inserisci nome e cognome." });
+      }
+      if (!customerPhone || customerPhone.replace(/[^\d]/g, "").length < 6) {
+        return res.status(400).json({ ok: false, message: "Inserisci un numero di telefono valido." });
+      }
+      if (!serviceDetails || serviceDetails.length < 20) {
+        return res.status(400).json({ ok: false, message: "Descrivi il servizio richiesto con almeno 20 caratteri." });
+      }
     }
     if (!message) {
       return res.status(400).json({ ok: false, message: "Descrivi la richiesta nel ticket." });
@@ -847,30 +694,22 @@ function createApp(overrides = {}) {
       userId: req.currentUser.id,
       email,
       message,
-      subject: subject || (productName ? "Informazioni su " + productName : "Ticket supporto"),
+      subject: subject || (productName ? "Ordine " + productName : "Ticket supporto"),
       category: category || null,
       productName: productName || null,
+      customerName: customerName || null,
+      customerPhone: customerPhone || null,
+      customerDiscord: customerDiscord || null,
+      paymentMethod: isCheckout ? (paymentMethod || "Revolut") : null,
+      paymentStatus: isCheckout ? (paymentStatus || "in_attesa_verifica") : null,
+      serviceDetails: serviceDetails || null,
+      price: price || null,
       ip: req.clientIp,
     });
     let chat = null;
-    let initialUserMessage = null;
-    let initialBotMessage = null;
-    const adminId = firstAdminId();
-    if (adminId) {
-      chat = support.openChatForTicket(ticket.id, adminId);
-      initialUserMessage = support.postMessage({
-        chatId: chat.id,
-        senderId: req.currentUser.id,
-        senderRole: "user",
-        content: message,
-      });
-      initialBotMessage = support.postMessage({
-        chatId: chat.id,
-        senderId: 0,
-        senderRole: "bot",
-        content: "Ciao, sono l'assistente AI Synapse. Posso aiutarti solo su servizi, prezzi, ticket, rimborsi, privacy e prodotti del sito. Se vuoi parlare con un umano, scrivi: voglio parlare con un umano.",
-      });
-      chat = support.getChat(chat.id);
+    if (autoOpenChat) {
+      const adminId = firstAdminId();
+      if (adminId) chat = support.openChatForTicket(ticket.id, adminId);
     }
     const finalTicket = chat ? support.getTicket(ticket.id) : ticket;
     const audience = adminUserIds().concat([req.currentUser.id]);
@@ -879,9 +718,6 @@ function createApp(overrides = {}) {
     if (chat) {
       broadcaster.broadcast("ticket:update", finalTicket, { userIds: audience });
       broadcaster.broadcast("chat:open", chat, { userIds: audience });
-      if (initialUserMessage) broadcaster.broadcast("chat:message", { chatId: chat.id, message: initialUserMessage }, { userIds: audience });
-      if (initialBotMessage) broadcaster.broadcast("chat:message", { chatId: chat.id, message: initialBotMessage }, { userIds: audience });
-      setImmediate(function () { runAiSupportReply(chat.id, message).catch(function (error) { console.error("[ai-support]", error); }); });
     }
     res.status(201).json({ ok: true, ticket: finalTicket, chat });
   });
@@ -978,9 +814,6 @@ function createApp(overrides = {}) {
     const content = req.body && typeof req.body.content === "string" ? req.body.content.trim() : "";
     if (!content) return res.status(400).json({ ok: false, message: "Messaggio vuoto." });
     if (content.length > 4000) return res.status(400).json({ ok: false, message: "Messaggio troppo lungo (max 4000)." });
-    if (senderRole === "admin") {
-      support.disableAiForChat(chat.id);
-    }
     const msg = support.postMessage({
       chatId: chat.id,
       senderId: req.currentUser.id,
@@ -992,9 +825,6 @@ function createApp(overrides = {}) {
     broadcaster.broadcast("chat:message", { chatId: chat.id, message: msg }, { userIds: audience });
     if (updatedChat) broadcaster.broadcast("chat:update", updatedChat, { userIds: audience });
     res.status(201).json({ ok: true, message: msg, chat: updatedChat });
-    if (senderRole === "user" && updatedChat && updatedChat.aiEnabled && !updatedChat.needsAdmin) {
-      setImmediate(function () { runAiSupportReply(chat.id, content).catch(function (error) { console.error("[ai-support]", error); }); });
-    }
   });
 
   app.post("/api/chats/:id/typing", requireCsrf, requireAuth, function (req, res) {

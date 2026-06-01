@@ -221,8 +221,8 @@
     <section id="ordine" class="section cta-section">
       <div class="container cta-inner">
         <h2>Come ordinare</h2>
-        <p class="lead">Seleziona un prodotto o servizio, completa il checkout con Revolut e invia i dettagli obbligatori del lavoro dopo il pagamento.</p>
-        <a class="btn btn-primary btn-lg" href="#bot">Scegli servizio</a>
+        <p class="lead">Apri un ticket direttamente dal prodotto che ti interessa: lo staff riceve la richiesta nel pannello admin e può seguirti in chat.</p>
+        <button type="button" class="btn btn-primary btn-lg" id="open-order-ticket">Apri ticket generale</button>
       </div>
     </section>
   </main>
@@ -358,10 +358,10 @@
           <h3>4. Pagamenti</h3>
           <ul>
             <li>Lo sviluppo del bot inizia solo dopo la conferma del pagamento.</li>
-            <li>L’unico metodo di pagamento disponibile è Revolut tramite checkout Synapse e link ufficiale.</li>
+            <li>I metodi di pagamento vengono comunicati privatamente.</li>
             <li>I prezzi sono indicati nel listino ufficiale.</li>
             <li>Eventuali sconti possono essere applicati solo a discrezione dello staff e sempre entro un tetto limite deciso internamente.</li>
-            <li>Dopo il pagamento il cliente deve compilare i dettagli obbligatori del servizio richiesto.</li>
+            <li>La fattura può essere richiesta prima o dopo il pagamento.</li>
           </ul>
           <h4>Comandi non utilizzati</h4>
           <p>
@@ -592,6 +592,91 @@
           <h3>I tuoi ticket</h3>
           <ul id="report-mine-list" class="report-list"></ul>
         </section>
+      </div>
+    </div>
+  </div>
+
+  <div
+    id="checkout-modal"
+    class="modal checkout-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="checkout-modal-title"
+    hidden
+  >
+    <div class="modal-dialog checkout-dialog">
+      <header class="modal-header">
+        <h2 id="checkout-modal-title" class="modal-title">Checkout</h2>
+        <button type="button" class="modal-close checkout-modal-close" aria-label="Chiudi">&times;</button>
+      </header>
+      <div class="modal-body checkout-body">
+        <div id="checkout-login-needed" class="report-login-needed" hidden>
+          <p>Per completare l'acquisto devi prima <button type="button" class="link-btn" id="checkout-go-login">accedere</button>.</p>
+        </div>
+        <div id="checkout-flow" class="checkout-flow">
+          <div class="checkout-step" data-step="1" id="checkout-step-summary">
+            <div class="checkout-summary">
+              <span class="checkout-summary-label">Prodotto selezionato</span>
+              <span class="checkout-summary-name" id="checkout-product-name">—</span>
+              <span class="checkout-summary-price" id="checkout-product-price"></span>
+            </div>
+            <form id="checkout-form" class="auth-form" novalidate>
+              <label class="auth-field">
+                <span class="auth-label">Nome e cognome</span>
+                <input type="text" id="checkout-name" name="name" autocomplete="name" required />
+              </label>
+              <label class="auth-field">
+                <span class="auth-label">Numero di telefono</span>
+                <input type="tel" id="checkout-phone" name="phone" autocomplete="tel" inputmode="tel" required />
+              </label>
+              <label class="auth-field">
+                <span class="auth-label">Email di contatto</span>
+                <input type="email" id="checkout-email" name="email" autocomplete="email" required />
+              </label>
+              <label class="auth-field">
+                <span class="auth-label">Username Discord (facoltativo)</span>
+                <input type="text" id="checkout-discord" name="discord" autocomplete="off" />
+              </label>
+              <div class="checkout-payment">
+                <span class="auth-label">Metodo di pagamento</span>
+                <div class="checkout-pay-option" data-selected="true">
+                  <span class="checkout-pay-logo">Revolut</span>
+                  <span class="checkout-pay-text">Pagamento sicuro tramite Revolut</span>
+                  <span class="checkout-pay-check">✓</span>
+                </div>
+              </div>
+              <p id="checkout-feedback" class="auth-message" aria-live="polite" hidden></p>
+              <button type="submit" class="btn btn-primary auth-submit" id="checkout-pay-btn">Paga con Revolut</button>
+            </form>
+          </div>
+          <div class="checkout-step" data-step="2" id="checkout-step-service" hidden>
+            <div class="checkout-paid-banner">
+              <span class="checkout-paid-icon">✓</span>
+              <div>
+                <strong>Pagamento avviato su Revolut</strong>
+                <p>Completa il pagamento nella scheda aperta, poi descrivi qui sotto il servizio richiesto per finalizzare l'ordine.</p>
+              </div>
+            </div>
+            <form id="service-form" class="auth-form" novalidate>
+              <label class="auth-field">
+                <span class="auth-label">Descrivi il servizio richiesto (obbligatorio)</span>
+                <textarea id="service-details" name="serviceDetails" rows="9" maxlength="10000" required placeholder="Descrivi nel dettaglio: servizio richiesto, obiettivi, specifiche tecniche, preferenze e ogni dettaglio utile all'esecuzione del lavoro. Più informazioni fornisci, più rapida e precisa sarà la realizzazione."></textarea>
+                <span class="auth-hint" id="service-counter">0 / 10000</span>
+              </label>
+              <p class="checkout-contact-note">Dopo l'invio verrai ricontattato tramite <strong>WhatsApp</strong> o <strong>Discord</strong> utilizzando i dati forniti durante l'acquisto.</p>
+              <p id="service-feedback" class="auth-message" aria-live="polite" hidden></p>
+              <button type="submit" class="btn btn-primary auth-submit" id="service-submit">Invia dettagli e finalizza ordine</button>
+            </form>
+          </div>
+          <div class="checkout-step" data-step="3" id="checkout-step-done" hidden>
+            <div class="checkout-done">
+              <span class="checkout-done-icon">✓</span>
+              <h3>Ordine ricevuto</h3>
+              <p>Il tuo ordine e i dettagli del servizio sono stati registrati. Verrai ricontattato a breve tramite <strong>WhatsApp</strong> o <strong>Discord</strong> usando i dati forniti.</p>
+              <button type="button" class="btn btn-primary" id="checkout-done-close">Chiudi</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

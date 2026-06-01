@@ -116,38 +116,19 @@ function ensureDatabase(dbPath) {
       admin_reply TEXT,
       chat_id INTEGER,
       ip TEXT,
+      customer_name TEXT,
+      customer_phone TEXT,
+      customer_discord TEXT,
+      payment_method TEXT,
+      payment_status TEXT,
+      service_details TEXT,
+      price TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets (user_id);
     CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets (status);
-
-    CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      email TEXT NOT NULL,
-      customer_name TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      discord_username TEXT,
-      product_category TEXT NOT NULL,
-      product_name TEXT NOT NULL,
-      price_label TEXT NOT NULL,
-      payment_method TEXT NOT NULL DEFAULT 'Revolut',
-      payment_link TEXT NOT NULL,
-      payment_status TEXT NOT NULL DEFAULT 'awaiting_revolut',
-      service_details TEXT,
-      status TEXT NOT NULL DEFAULT 'awaiting_payment',
-      ip TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      paid_marked_at TEXT,
-      details_submitted_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders (user_id);
-    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
 
     CREATE TABLE IF NOT EXISTS chats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -156,12 +137,9 @@ function ensureDatabase(dbPath) {
       admin_id INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
       user_can_send INTEGER NOT NULL DEFAULT 1,
-      needs_admin INTEGER NOT NULL DEFAULT 0,
-      ai_enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      closed_at TEXT,
-      closure_reason TEXT
+      closed_at TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats (user_id);
@@ -179,17 +157,10 @@ function ensureDatabase(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages (chat_id);
   `);
 
-  // Migrazione leggera: completa le colonne chat se il DB e' precedente.
+  // Migrazione leggera: aggiunge colonna closure_reason a chats se assente.
   const chatColumns = db.prepare("PRAGMA table_info(chats)").all();
-  function hasChatColumn(name) { return chatColumns.some(function (c) { return c.name === name; }); }
-  if (!hasChatColumn("closure_reason")) {
+  if (!chatColumns.some(function (c) { return c.name === "closure_reason"; })) {
     db.exec("ALTER TABLE chats ADD COLUMN closure_reason TEXT");
-  }
-  if (!hasChatColumn("needs_admin")) {
-    db.exec("ALTER TABLE chats ADD COLUMN needs_admin INTEGER NOT NULL DEFAULT 0");
-  }
-  if (!hasChatColumn("ai_enabled")) {
-    db.exec("ALTER TABLE chats ADD COLUMN ai_enabled INTEGER NOT NULL DEFAULT 0");
   }
 
   // Migrazione leggera: aggiunge colonne utente/moderazione se un DB pre-esistente non le contiene.
@@ -243,23 +214,26 @@ function ensureDatabase(dbPath) {
   if (!hasTicketColumn("product_name")) {
     db.exec("ALTER TABLE tickets ADD COLUMN product_name TEXT");
   }
-
-  const orderColumns = db.prepare("PRAGMA table_info(orders)").all();
-  function hasOrderColumn(name) { return orderColumns.some(function (c) { return c.name === name; }); }
-  if (!hasOrderColumn("discord_username")) {
-    db.exec("ALTER TABLE orders ADD COLUMN discord_username TEXT");
+  if (!hasTicketColumn("customer_name")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN customer_name TEXT");
   }
-  if (!hasOrderColumn("payment_status")) {
-    db.exec("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'awaiting_revolut'");
+  if (!hasTicketColumn("customer_phone")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN customer_phone TEXT");
   }
-  if (!hasOrderColumn("service_details")) {
-    db.exec("ALTER TABLE orders ADD COLUMN service_details TEXT");
+  if (!hasTicketColumn("customer_discord")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN customer_discord TEXT");
   }
-  if (!hasOrderColumn("paid_marked_at")) {
-    db.exec("ALTER TABLE orders ADD COLUMN paid_marked_at TEXT");
+  if (!hasTicketColumn("payment_method")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN payment_method TEXT");
   }
-  if (!hasOrderColumn("details_submitted_at")) {
-    db.exec("ALTER TABLE orders ADD COLUMN details_submitted_at TEXT");
+  if (!hasTicketColumn("payment_status")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN payment_status TEXT");
+  }
+  if (!hasTicketColumn("service_details")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN service_details TEXT");
+  }
+  if (!hasTicketColumn("price")) {
+    db.exec("ALTER TABLE tickets ADD COLUMN price TEXT");
   }
 
   // Coerenza dati: se una chat è chiusa, anche il ticket collegato deve risultare chiuso.
