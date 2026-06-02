@@ -1050,9 +1050,6 @@
   if (openBtn) openBtn.addEventListener("click", openModal);
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   if (saveBtn) saveBtn.addEventListener("click", saveContent);
-  if (modal) {
-    modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
-  }
 
   // Mostra/nasconde il bottone Admin in base a user.isAdmin
   document.addEventListener("synapse:auth-changed", function (ev) {

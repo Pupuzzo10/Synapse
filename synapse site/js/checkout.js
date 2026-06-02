@@ -81,7 +81,6 @@
       if (!existing.getAttribute("data-checkout-bound")) {
         var existingClose = existing.querySelector(".checkout-modal-close");
         if (existingClose) existingClose.addEventListener("click", closeModal);
-        existing.addEventListener("click", function (event) { if (event.target === existing) closeModal(); });
         existing.setAttribute("data-checkout-bound", "true");
       }
       return;
@@ -97,7 +96,6 @@
     dialog.appendChild(header);
     dialog.appendChild(bodyEl);
     modal.appendChild(dialog);
-    modal.addEventListener("click", function (event) { if (event.target === modal) closeModal(); });
     document.body.appendChild(modal);
   }
 

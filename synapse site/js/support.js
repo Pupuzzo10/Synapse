@@ -265,7 +265,6 @@
     message: "Ciao Synapse, vorrei aprire un ticket generale per ricevere informazioni sui servizi disponibili."
   }); });
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
-  if (modal) modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
   if (form) form.addEventListener("submit", submit);
   if (goLoginBtn && openAuthBtn) goLoginBtn.addEventListener("click", function () { closeModal(); openAuthBtn.click(); });
   if (openMyChatBtn) openMyChatBtn.addEventListener("click", openMyChat);

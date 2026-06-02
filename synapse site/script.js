@@ -41,10 +41,6 @@
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
 
   if (modal) {
-    modal.addEventListener("click", function (e) {
-      if (e.target === modal) closeModal();
-    });
-
     document.addEventListener("keydown", function (e) {
       var authM = document.getElementById("auth-modal");
       if (authM && !authM.hasAttribute("hidden")) return;
@@ -141,7 +137,6 @@
   if (openBtn) openBtn.addEventListener("click", openModal);
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   if (modal) {
-    modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && !modal.hasAttribute("hidden")) {
         e.preventDefault();
