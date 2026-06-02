@@ -130,6 +130,35 @@ function ensureDatabase(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets (user_id);
     CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets (status);
 
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      email TEXT NOT NULL,
+      customer_name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      discord_username TEXT,
+      product_category TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      price_label TEXT NOT NULL,
+      payment_method TEXT NOT NULL DEFAULT 'Revolut',
+      payment_link TEXT NOT NULL,
+      payment_status TEXT NOT NULL DEFAULT 'awaiting_revolut',
+      status TEXT NOT NULL DEFAULT 'awaiting_payment',
+      service_details TEXT,
+      ip TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      paid_marked_at TEXT,
+      payment_opened_at TEXT,
+      details_submitted_at TEXT,
+      completed_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders (user_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
+    CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders (created_at);
+
     CREATE TABLE IF NOT EXISTS chats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ticket_id INTEGER NOT NULL,
@@ -234,6 +263,15 @@ function ensureDatabase(dbPath) {
   }
   if (!hasTicketColumn("price")) {
     db.exec("ALTER TABLE tickets ADD COLUMN price TEXT");
+  }
+
+  const orderColumns = db.prepare("PRAGMA table_info(orders)").all();
+  function hasOrderColumn(name) { return orderColumns.some(function (c) { return c.name === name; }); }
+  if (!hasOrderColumn("payment_opened_at")) {
+    db.exec("ALTER TABLE orders ADD COLUMN payment_opened_at TEXT");
+  }
+  if (!hasOrderColumn("completed_at")) {
+    db.exec("ALTER TABLE orders ADD COLUMN completed_at TEXT");
   }
 
   // Coerenza dati: se una chat è chiusa, anche il ticket collegato deve risultare chiuso.

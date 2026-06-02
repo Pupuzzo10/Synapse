@@ -75,12 +75,20 @@
   }
 
   function ticketButton(category, name, price) {
-    return el("button", {
+    var wrap = el("div", { class: "product-actions" });
+    wrap.appendChild(el("button", {
       type: "button",
       class: "btn btn-primary product-ticket-btn",
       text: "Acquista",
       onclick: function () { openCheckoutFor(category, name, price); },
-    });
+    }));
+    wrap.appendChild(el("button", {
+      type: "button",
+      class: "btn btn-ghost product-info-ticket-btn",
+      text: "Apri ticket",
+      onclick: function () { openTicketFor(category, name, price); },
+    }));
+    return wrap;
   }
 
   function renderBadge(card, plan) {

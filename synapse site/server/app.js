@@ -14,6 +14,7 @@ const { createSessionMiddleware, requireCsrf } = require("./session-store");
 const adminOps = require("./admin-ops");
 const { createBroadcaster } = require("./events");
 const { createSupport } = require("./support");
+const { createOrders } = require("./orders");
 
 function serializeUser(user) {
   return {
@@ -266,6 +267,12 @@ function createApp(overrides = {}) {
     message: "Stai inviando troppi messaggi. Attendi qualche secondo.",
   });
 
+  const orderLimiter = buildRateLimiter({
+    windowMs: 10 * 60 * 1000,
+    limit: 10,
+    message: "Troppi tentativi di acquisto. Riprova tra qualche minuto.",
+  });
+
   async function deliverVerificationEmail(user, verificationUrl) {
     logEmailEvent("attempt", {
       userId: user.id,
@@ -510,6 +517,7 @@ function createApp(overrides = {}) {
   adminOps.seedContent(authDb);
   const broadcaster = createBroadcaster();
   const support = createSupport(authDb);
+  const orders = createOrders(authDb);
 
   app.get("/api/events", function (req, res) {
     const accountBlock = blockInfoFromUser(req.sessionUser);
@@ -646,6 +654,90 @@ function createApp(overrides = {}) {
     const next = adminOps.saveStatus(authDb, body);
     broadcaster.broadcast("status", next);
     res.json({ ok: true, status: next });
+  });
+
+  function normalizeCheckoutText(value, fallback, max) {
+    const text = typeof value === "string" ? value.trim() : "";
+    return (text || fallback || "").slice(0, max || 160);
+  }
+
+  function broadcastOrder(kind, order) {
+    if (!order) return;
+    broadcaster.broadcast("order:" + kind, order, { userIds: adminUserIds().concat([order.userId]) });
+  }
+
+  function requireOrderAccess(req, res) {
+    const order = orders.getOrder(parseInt(req.params.id, 10));
+    if (!order) {
+      res.status(404).json({ ok: false, message: "Ordine inesistente." });
+      return null;
+    }
+    if (!req.currentUser.is_admin && order.userId !== req.currentUser.id) {
+      res.status(403).json({ ok: false, message: "Non puoi vedere questo ordine." });
+      return null;
+    }
+    return order;
+  }
+
+  app.post("/api/orders", orderLimiter, requireCsrf, requireAuth, function (req, res) {
+    const customerName = normalizeCheckoutText(req.body && req.body.customerName, "", 120);
+    const phone = normalizeCheckoutText(req.body && req.body.phone, "", 40);
+    const discordUsername = normalizeCheckoutText(req.body && req.body.discordUsername, "", 80);
+    const productCategory = normalizeCheckoutText(req.body && req.body.productCategory, "Prodotto Synapse", 120);
+    const productName = normalizeCheckoutText(req.body && req.body.productName, "Prodotto Synapse", 160);
+    const priceLabel = normalizeCheckoutText(req.body && req.body.priceLabel, "Da confermare", 60);
+    if (!/^\S+\s+\S+/.test(customerName)) return res.status(400).json({ ok: false, message: "Inserisci nome e cognome." });
+    if (!phone || !/^[+()0-9\s.-]{6,40}$/.test(phone) || phone.replace(/\D/g, "").length < 6) return res.status(400).json({ ok: false, message: "Inserisci un numero di telefono valido." });
+    const order = orders.createOrder({
+      userId: req.currentUser.id,
+      email: req.currentUser.email,
+      customerName,
+      phone,
+      discordUsername,
+      productCategory,
+      productName,
+      priceLabel,
+      paymentMethod: "Revolut",
+      paymentLink: "https://revolut.me/angelo2tqp",
+      ip: req.clientIp,
+    });
+    broadcastOrder("new", order);
+    res.status(201).json({ ok: true, order });
+  });
+
+  app.get("/api/orders/mine", requireAuth, function (req, res) {
+    res.json({ ok: true, orders: orders.listMyOrders(req.currentUser.id) });
+  });
+
+  app.get("/api/orders", requireAdmin, function (req, res) {
+    res.json({ ok: true, orders: orders.listAllOrders() });
+  });
+
+  app.post("/api/orders/:id/confirm-payment", requireCsrf, requireAuth, function (req, res) {
+    const order = requireOrderAccess(req, res);
+    if (!order) return;
+    const updated = orders.markPaymentConfirmed(order.id);
+    broadcastOrder("update", updated);
+    res.json({ ok: true, order: updated });
+  });
+
+  app.post("/api/orders/:id/details", requireCsrf, requireAuth, function (req, res) {
+    const order = requireOrderAccess(req, res);
+    if (!order) return;
+    const serviceDetails = typeof req.body.serviceDetails === "string" ? req.body.serviceDetails.trim() : "";
+    if (serviceDetails.length < 40) return res.status(400).json({ ok: false, message: "Inserisci una descrizione completa del servizio richiesto." });
+    if (serviceDetails.length > 15000) return res.status(400).json({ ok: false, message: "La descrizione supera i 15.000 caratteri." });
+    const updated = orders.saveServiceDetails(order.id, serviceDetails);
+    broadcastOrder("update", updated);
+    res.json({ ok: true, order: updated });
+  });
+
+  app.post("/api/orders/:id/complete", requireCsrf, requireAdmin, function (req, res) {
+    const order = orders.getOrder(parseInt(req.params.id, 10));
+    if (!order) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
+    const updated = orders.markCompleted(order.id);
+    broadcastOrder("update", updated);
+    res.json({ ok: true, order: updated });
   });
 
   // === SUPPORT TICKETS ===

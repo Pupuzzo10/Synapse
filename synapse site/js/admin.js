@@ -739,11 +739,24 @@
 
   var ordersCache = [];
   function orderStatusLabel(s) {
-    return ({ awaiting_payment: "In attesa pagamento", payment_confirmed: "Pagamento confermato", details_received: "Dettagli ricevuti", completed: "Completato" })[s] || s;
+    return ({ awaiting_payment: "In attesa pagamento", payment_pending_details: "Dettagli mancanti", payment_confirmed: "Dettagli mancanti", details_received: "Dettagli ricevuti", completed: "Completato" })[s] || s;
   }
 
   function paymentStatusLabel(s) {
-    return ({ awaiting_revolut: "In attesa Revolut", customer_confirmed: "Confermato dal cliente", verified: "Verificato" })[s] || s;
+    return ({ awaiting_revolut: "In attesa Revolut", revolut_opened: "Revolut aperto", customer_confirmed: "Confermato dal cliente", customer_details_received: "Dettagli ricevuti", verified: "Verificato" })[s] || s;
+  }
+
+  function orderStatusClass(o) {
+    if (!o || !o.status) return "awaiting_payment";
+    return String(o.status).replace(/[^a-z0-9_-]/gi, "_");
+  }
+
+  function orderAction(id, action, body) {
+    return fetch(appBaseUrl + "/api/orders/" + id + "/" + action, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+      body: JSON.stringify(body || {}),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
 
   function loadOrders(after) {
@@ -755,15 +768,26 @@
           if (typeof after === "function") after();
           if (activeTab === "orders") renderActiveTab();
         }
-      });
+      })
+      .catch(function () {});
   }
 
   function tab_orders() {
-    var box = el("div");
-    var head = el("div", { class: "admin-tickets-head" });
-    head.appendChild(el("h3", { text: "Ordini checkout", style: "margin:0" }));
-    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica", onclick: function () { loadOrders(); } }));
+    var box = el("div", { class: "admin-dashboard" });
+    var head = el("div", { class: "admin-page-head" });
+    head.appendChild(el("div", { html: "<h3>Ordini checkout</h3><p class='muted small'>Acquisti Revolut, dati cliente, telefono, Discord e dettagli obbligatori del servizio.</p>" }));
+    head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica ordini", onclick: function () { loadOrders(); } }));
     box.appendChild(head);
+
+    var activeCount = ordersCache.filter(function (o) { return ["awaiting_payment", "payment_pending_details", "payment_confirmed"].indexOf(o.status) !== -1; }).length;
+    var detailsCount = ordersCache.filter(function (o) { return o.status === "details_received"; }).length;
+    var completedCount = ordersCache.filter(function (o) { return o.status === "completed"; }).length;
+    var stats = el("div", { class: "admin-stat-grid" });
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + ordersCache.length + "</strong><span>Totale ordini</span>" }));
+    stats.appendChild(el("div", { class: "admin-stat-card admin-stat-alert", html: "<strong>" + activeCount + "</strong><span>In corso</span>" }));
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + detailsCount + "</strong><span>Da lavorare</span>" }));
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + completedCount + "</strong><span>Completati</span>" }));
+    box.appendChild(stats);
 
     if (!ordersCache.length) {
       box.appendChild(el("p", { class: "muted small", text: "Nessun ordine ricevuto. Caricamento..." }));
@@ -771,30 +795,49 @@
       return box;
     }
 
+    var list = el("div", { class: "admin-orders-list" });
     ordersCache.forEach(function (o) {
-      var card = el("div", { class: "admin-ticket admin-ticket-" + (o.status === "details_received" ? "approved" : "pending") });
+      var statusClass = orderStatusClass(o);
+      var card = el("div", { class: "admin-ticket admin-order-card admin-order-" + statusClass });
       var header = el("div", { class: "admin-ticket-head" });
-      header.appendChild(el("span", { class: "report-pill report-pill-" + (o.status === "details_received" ? "approved" : "pending"), text: orderStatusLabel(o.status) }));
-      header.appendChild(el("span", { class: "admin-ticket-meta", text: "#" + o.id + " · " + (o.username || "Utente " + o.userId) + " · " + o.email + " · " + new Date(o.createdAt).toLocaleString() }));
+      header.appendChild(el("span", { class: "report-pill report-pill-" + statusClass, text: orderStatusLabel(o.status) }));
+      header.appendChild(el("span", { class: "admin-ticket-meta", text: "Ordine #" + o.id + " · " + (o.username || "Utente " + o.userId) + " · " + o.email + " · " + new Date(o.createdAt).toLocaleString() }));
       card.appendChild(header);
-      var lines = [
-        "Cliente: " + o.customerName,
-        "Telefono: " + o.phone,
-        "Discord: " + (o.discordUsername || "Non indicato"),
-        "Prodotto: " + o.productCategory + " · " + o.productName,
-        "Importo: " + o.priceLabel,
-        "Pagamento: " + o.paymentMethod + " · " + paymentStatusLabel(o.paymentStatus),
-        "Contatto successivo: WhatsApp o Discord",
-      ];
-      card.appendChild(el("p", { class: "admin-ticket-msg", text: lines.join("\n") }));
+      card.appendChild(el("div", { class: "admin-ticket-product", text: "Prodotto: " + o.productCategory + " · " + o.productName + " · Importo: " + o.priceLabel }));
+      card.appendChild(el("div", { class: "admin-ticket-payment", text: "Pagamento: " + o.paymentMethod + " · " + paymentStatusLabel(o.paymentStatus) + " · Link: " + (o.paymentLink || "—") }));
+      card.appendChild(el("div", { class: "admin-ticket-customer" }, [
+        el("span", { text: "Cliente: " + o.customerName }),
+        el("span", { class: "admin-ticket-phone", text: "Telefono: " + o.phone }),
+        el("span", { text: "Discord: " + (o.discordUsername || "Non indicato") }),
+        el("span", { text: "IP: " + (o.ip || "—") }),
+      ]));
+      var dates = [];
+      if (o.paymentOpenedAt) dates.push("Pagamento aperto: " + new Date(o.paymentOpenedAt).toLocaleString());
+      if (o.detailsSubmittedAt) dates.push("Dettagli inviati: " + new Date(o.detailsSubmittedAt).toLocaleString());
+      if (o.completedAt) dates.push("Completato: " + new Date(o.completedAt).toLocaleString());
+      if (dates.length) card.appendChild(el("p", { class: "admin-ticket-meta", text: dates.join(" · ") }));
       if (o.serviceDetails) {
-        var details = el("p", { class: "admin-ticket-reply" });
-        details.appendChild(el("strong", { text: "Dettagli servizio: " }));
-        details.appendChild(document.createTextNode(o.serviceDetails));
-        card.appendChild(details);
+        card.appendChild(el("div", { class: "admin-ticket-service" }, [
+          el("strong", { text: "Dettagli servizio" }),
+          el("p", { text: o.serviceDetails }),
+        ]));
+      } else {
+        card.appendChild(el("p", { class: "muted small", text: "Dettagli servizio non ancora inviati dal cliente." }));
       }
-      box.appendChild(card);
+      var actions = el("div", { class: "admin-ticket-actions" });
+      if (o.status === "details_received") {
+        actions.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Segna completato", onclick: function () {
+          if (!confirm("Segnare questo ordine come completato?")) return;
+          orderAction(o.id, "complete").then(function (r) {
+            if (!r.ok || !r.data.ok) alert(r.data.message || "Errore");
+            loadOrders();
+          });
+        } }));
+      }
+      card.appendChild(actions);
+      list.appendChild(card);
     });
+    box.appendChild(list);
     return box;
   }
 

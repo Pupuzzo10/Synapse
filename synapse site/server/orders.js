@@ -23,7 +23,9 @@ function rowToOrder(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     paidMarkedAt: row.paid_marked_at || null,
+    paymentOpenedAt: row.payment_opened_at || null,
     detailsSubmittedAt: row.details_submitted_at || null,
+    completedAt: row.completed_at || null,
     username: row.username || null,
   };
 }
@@ -50,7 +52,13 @@ function createOrders(authDb) {
       SELECT o.*, u.username FROM orders o
       LEFT JOIN users u ON u.id = o.user_id
       ORDER BY
-        CASE o.status WHEN 'details_received' THEN 0 WHEN 'payment_confirmed' THEN 1 WHEN 'awaiting_payment' THEN 2 ELSE 3 END,
+        CASE o.status
+          WHEN 'awaiting_payment' THEN 0
+          WHEN 'payment_pending_details' THEN 1
+          WHEN 'details_received' THEN 2
+          WHEN 'completed' THEN 3
+          ELSE 4
+        END,
         o.created_at DESC
     `),
     listOrdersByUser: db.prepare(`
@@ -59,14 +67,27 @@ function createOrders(authDb) {
       WHERE o.user_id = ?
       ORDER BY o.created_at DESC
     `),
-    markPayment: db.prepare(`
+    markPaymentOpened: db.prepare(`
       UPDATE orders
-      SET payment_status = 'customer_confirmed', status = 'payment_confirmed', paid_marked_at = @now, updated_at = @now
+      SET payment_status = CASE WHEN payment_status = 'verified' THEN payment_status ELSE 'revolut_opened' END,
+          status = CASE WHEN status = 'awaiting_payment' THEN 'payment_pending_details' ELSE status END,
+          payment_opened_at = COALESCE(payment_opened_at, @now),
+          paid_marked_at = COALESCE(paid_marked_at, @now),
+          updated_at = @now
       WHERE id = @id
     `),
     saveDetails: db.prepare(`
       UPDATE orders
-      SET service_details = @service_details, status = 'details_received', details_submitted_at = @now, updated_at = @now
+      SET service_details = @service_details,
+          payment_status = CASE WHEN payment_status = 'verified' THEN payment_status ELSE 'customer_details_received' END,
+          status = CASE WHEN status = 'completed' THEN status ELSE 'details_received' END,
+          details_submitted_at = @now,
+          updated_at = @now
+      WHERE id = @id
+    `),
+    markCompleted: db.prepare(`
+      UPDATE orders
+      SET payment_status = 'verified', status = 'completed', completed_at = @now, updated_at = @now
       WHERE id = @id
     `),
   };
@@ -103,12 +124,17 @@ function createOrders(authDb) {
   }
 
   function markPaymentConfirmed(id) {
-    stmts.markPayment.run({ id, now: nowIso() });
+    stmts.markPaymentOpened.run({ id, now: nowIso() });
     return getOrder(id);
   }
 
   function saveServiceDetails(id, serviceDetails) {
     stmts.saveDetails.run({ id, service_details: serviceDetails, now: nowIso() });
+    return getOrder(id);
+  }
+
+  function markCompleted(id) {
+    stmts.markCompleted.run({ id, now: nowIso() });
     return getOrder(id);
   }
 
@@ -119,6 +145,7 @@ function createOrders(authDb) {
     listMyOrders,
     markPaymentConfirmed,
     saveServiceDetails,
+    markCompleted,
   };
 }
 

@@ -11,7 +11,6 @@
   var currentProduct = null;
   var currentOrder = null;
   var step = "checkout";
-  var paymentOpened = false;
   var modal = null;
   var titleEl = null;
   var bodyEl = null;
@@ -74,6 +73,19 @@
 
   function ensureModal() {
     if (modal) return;
+    var existing = document.getElementById("checkout-modal");
+    if (existing) {
+      modal = existing;
+      titleEl = existing.querySelector("#checkout-modal-title") || existing.querySelector(".modal-title");
+      bodyEl = existing.querySelector(".checkout-body") || existing.querySelector(".modal-body");
+      if (!existing.getAttribute("data-checkout-bound")) {
+        var existingClose = existing.querySelector(".checkout-modal-close");
+        if (existingClose) existingClose.addEventListener("click", closeModal);
+        existing.addEventListener("click", function (event) { if (event.target === existing) closeModal(); });
+        existing.setAttribute("data-checkout-bound", "true");
+      }
+      return;
+    }
     modal = el("div", { id: "checkout-modal", class: "modal checkout-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "checkout-modal-title", hidden: "" });
     var dialog = el("div", { class: "modal-dialog checkout-dialog" });
     var header = el("header", { class: "modal-header" });
@@ -105,9 +117,15 @@
   function productSummary() {
     return el("div", { class: "checkout-summary" }, [
       el("span", { class: "checkout-kicker", text: currentProduct.productCategory || "Prodotto Synapse" }),
-      el("strong", { text: currentProduct.productName || "Prodotto Synapse" }),
+      el("strong", { class: "checkout-product-title", text: currentProduct.productName || "Prodotto Synapse" }),
       el("span", { class: "checkout-price", text: normalizePrice(currentProduct.priceLabel) }),
     ]);
+  }
+
+  function field(label, input, hint) {
+    var children = [el("span", { class: "auth-label", text: label }), input];
+    if (hint) children.push(el("span", { class: "auth-hint", text: hint }));
+    return el("label", { class: "auth-field" }, children);
   }
 
   function renderLoginRequired() {
@@ -122,31 +140,27 @@
     } }));
   }
 
-  function field(label, input, hint) {
-    var children = [el("span", { class: "auth-label", text: label }), input];
-    if (hint) children.push(el("span", { class: "auth-hint", text: hint }));
-    return el("label", { class: "auth-field" }, children);
-  }
-
   function renderCheckout() {
     titleEl.textContent = "Checkout Synapse";
     clear(bodyEl);
     var form = el("form", { class: "auth-form checkout-form", novalidate: "" });
     var feedback = el("p", { class: "auth-message", "aria-live": "polite", hidden: "" });
     var nameInput = el("input", { type: "text", name: "customerName", required: "", autocomplete: "name", maxlength: "120" });
-    var phoneInput = el("input", { type: "tel", name: "phone", required: "", autocomplete: "tel", maxlength: "40" });
+    var phoneInput = el("input", { type: "tel", name: "phone", required: "", autocomplete: "tel", inputmode: "tel", maxlength: "40" });
     var discordInput = el("input", { type: "text", name: "discordUsername", autocomplete: "off", maxlength: "80" });
-    var submit = el("button", { type: "submit", class: "btn btn-primary checkout-wide", text: "Conferma ordine e procedi al pagamento" });
+    var submit = el("button", { type: "submit", class: "btn btn-primary checkout-wide", text: "Continua al pagamento Revolut" });
+    if (currentUser && currentUser.username && !nameInput.value) nameInput.value = "";
     form.appendChild(productSummary());
     form.appendChild(el("div", { class: "checkout-payment-card" }, [
       el("span", { class: "checkout-kicker", text: "Metodo di pagamento" }),
       el("strong", { text: "Revolut" }),
-      el("p", { text: "Metodo ufficiale Synapse. Non vengono acquisiti dati carta su questo sito." }),
+      el("p", { text: "Unico metodo disponibile. Stripe, PayPal, Klarna e altri gateway non sono attivi." }),
+      el("span", { class: "checkout-official-link", text: REVOLUT_PAYMENT_LINK }),
     ]));
     form.appendChild(field("Nome e cognome", nameInput));
-    form.appendChild(field("Numero di telefono", phoneInput, "Visibile allo staff per eventuale contatto WhatsApp."));
+    form.appendChild(field("Numero di telefono", phoneInput, "Obbligatorio e visibile allo staff nell'area ordini."));
     form.appendChild(field("Username Discord", discordInput, "Facoltativo. Verrà usato solo per comunicazioni operative."));
-    form.appendChild(el("p", { class: "checkout-note", text: "Dopo la conferma potrai pagare tramite Revolut e completare obbligatoriamente i dettagli del servizio richiesto." }));
+    form.appendChild(el("p", { class: "checkout-note", text: "Dopo l'apertura del pagamento Revolut passerai automaticamente al modulo obbligatorio dei dettagli del servizio." }));
     form.appendChild(feedback);
     form.appendChild(submit);
     form.addEventListener("submit", function (event) {
@@ -172,7 +186,6 @@
       }).then(function (data) {
         currentOrder = data.order;
         step = "payment";
-        paymentOpened = false;
         render();
       }).catch(function (error) {
         submit.disabled = false;
@@ -186,38 +199,41 @@
     titleEl.textContent = "Pagamento Revolut";
     clear(bodyEl);
     var feedback = el("p", { class: "auth-message", "aria-live": "polite", hidden: "" });
-    var continueBtn = el("button", { type: "button", class: "btn btn-primary checkout-wide", text: "Ho completato il pagamento", disabled: "" });
-    var payBtn = el("a", { class: "btn btn-primary checkout-wide", href: REVOLUT_PAYMENT_LINK, target: "_blank", rel: "noopener noreferrer", text: "Paga ora con Revolut" });
+    var payBtn = el("a", { class: "btn btn-primary checkout-wide checkout-revolut-btn", href: REVOLUT_PAYMENT_LINK, target: "_blank", rel: "noopener noreferrer", text: "Paga ora con Revolut" });
     payBtn.addEventListener("click", function () {
-      paymentOpened = true;
-      continueBtn.disabled = false;
-      setMessage(feedback, "Dopo il pagamento completa i dettagli del servizio in questa pagina.", "info");
-    });
-    continueBtn.addEventListener("click", function () {
-      if (!currentOrder) return;
-      continueBtn.disabled = true;
-      setMessage(feedback, "Conferma pagamento in corso...", "info");
+      if (payBtn.getAttribute("aria-disabled") === "true") return;
+      payBtn.setAttribute("aria-disabled", "true");
+      payBtn.classList.add("is-loading");
+      setMessage(feedback, "Revolut è stato aperto. Questa schermata passa automaticamente al modulo dettagli obbligatorio.", "info");
       fetchJson("/api/orders/" + currentOrder.id + "/confirm-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       }).then(function (data) {
         currentOrder = data.order;
-        step = "details";
-        render();
+        window.setTimeout(function () {
+          step = "details";
+          render();
+        }, 650);
       }).catch(function (error) {
-        continueBtn.disabled = false;
+        payBtn.setAttribute("aria-disabled", "false");
+        payBtn.classList.remove("is-loading");
         setMessage(feedback, error.message, "error");
       });
     });
     bodyEl.appendChild(productSummary());
     bodyEl.appendChild(el("div", { class: "checkout-payment-card checkout-payment-card-active" }, [
       el("span", { class: "checkout-kicker", text: "Ordine #" + currentOrder.id }),
-      el("strong", { text: "Pagamento tramite Revolut" }),
-      el("p", { text: "Importo: " + normalizePrice(currentProduct.priceLabel) + ". Dopo il pagamento torna su questa schermata e conferma per inserire i dettagli obbligatori del servizio." }),
+      el("strong", { text: "Pagamento esclusivamente tramite Revolut" }),
+      el("p", { text: "Importo: " + normalizePrice(currentProduct.priceLabel) + ". Usa solo il link ufficiale mostrato qui sotto. Non vengono richiesti dati carta su questo sito." }),
+      el("span", { class: "checkout-official-link", text: REVOLUT_PAYMENT_LINK }),
+    ]));
+    bodyEl.appendChild(el("div", { class: "checkout-payment-flow" }, [
+      el("span", { text: "1. Si apre Revolut in una nuova scheda." }),
+      el("span", { text: "2. Completi il pagamento nel link ufficiale." }),
+      el("span", { text: "3. Torni qui e compili il modulo dettagli obbligatorio già pronto." }),
     ]));
     bodyEl.appendChild(payBtn);
-    bodyEl.appendChild(continueBtn);
     bodyEl.appendChild(feedback);
   }
 
@@ -226,13 +242,19 @@
     clear(bodyEl);
     var form = el("form", { class: "auth-form checkout-form", novalidate: "" });
     var feedback = el("p", { class: "auth-message", "aria-live": "polite", hidden: "" });
-    var textarea = el("textarea", { name: "serviceDetails", rows: "11", maxlength: "15000", required: "" });
+    var textarea = el("textarea", { name: "serviceDetails", rows: "12", maxlength: "15000", required: "" });
     var counter = el("span", { class: "auth-hint", text: "0 / 15000" });
-    var submit = el("button", { type: "submit", class: "btn btn-primary checkout-wide", text: "Invia dettagli obbligatori" });
+    var submit = el("button", { type: "submit", class: "btn btn-primary checkout-wide", text: "Invia dettagli e finalizza ordine" });
     textarea.placeholder = "Descrivi in modo completo il servizio richiesto, gli obiettivi, le specifiche tecniche, le preferenze grafiche o funzionali, gli account o server coinvolti, eventuali scadenze e tutto ciò che serve per eseguire correttamente il lavoro.";
     textarea.addEventListener("input", function () { counter.textContent = textarea.value.length + " / 15000"; });
     form.appendChild(productSummary());
-    form.appendChild(el("p", { class: "checkout-lead", text: "Compila questo modulo con una descrizione molto dettagliata. Lo staff potrà contattarti via WhatsApp o Discord usando i dati forniti durante l'acquisto." }));
+    form.appendChild(el("div", { class: "checkout-paid-banner" }, [
+      el("span", { class: "checkout-paid-icon", text: "✓" }),
+      el("div", {}, [
+        el("strong", { text: "Modulo obbligatorio post-pagamento" }),
+        el("p", { text: "Inserisci una descrizione molto dettagliata: servizio richiesto, obiettivi, specifiche tecniche, preferenze e ogni informazione utile alla consegna." }),
+      ]),
+    ]));
     form.appendChild(el("label", { class: "auth-field" }, [
       el("span", { class: "auth-label", text: "Descrizione completa del servizio" }),
       textarea,
@@ -263,11 +285,11 @@
   }
 
   function renderDone() {
-    titleEl.textContent = "Ordine completato";
+    titleEl.textContent = "Ordine ricevuto";
     clear(bodyEl);
     bodyEl.appendChild(productSummary());
-    bodyEl.appendChild(el("div", { class: "checkout-success" }, [
-      el("span", { class: "checkout-success-icon", text: "✓" }),
+    bodyEl.appendChild(el("div", { class: "checkout-success checkout-done" }, [
+      el("span", { class: "checkout-success-icon checkout-done-icon", text: "✓" }),
       el("strong", { text: "Dettagli ricevuti" }),
       el("p", { text: "Lo staff ha ricevuto ordine, telefono e dettagli del servizio. Potrai essere contattato tramite WhatsApp o Discord per completare l'esecuzione del lavoro." }),
     ]));
@@ -288,14 +310,15 @@
     currentProduct.priceLabel = normalizePrice(currentProduct.priceLabel);
     currentOrder = null;
     step = "checkout";
-    paymentOpened = false;
     openModal();
   }
 
   function resumeRequiredDetails() {
     if (!currentUser) return;
     fetchJson("/api/orders/mine", { method: "GET" }).then(function (data) {
-      var pending = (data.orders || []).find(function (order) { return order.status === "payment_confirmed" && !order.serviceDetails; });
+      var pending = (data.orders || []).find(function (order) {
+        return ["payment_pending_details", "payment_confirmed"].indexOf(order.status) !== -1 && !order.serviceDetails;
+      });
       if (!pending || (modal && !modal.hasAttribute("hidden"))) return;
       currentOrder = pending;
       currentProduct = {
