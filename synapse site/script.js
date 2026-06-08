@@ -145,3 +145,140 @@
     });
   }
 })();
+
+
+(function () {
+  var categoryMap = {
+    bot: "bot",
+    hosting: "hosting",
+    codice: "codice",
+    code: "codice",
+    loghi: "loghi",
+    logos: "loghi",
+    "siti-web": "siti-web",
+    websites: "siti-web",
+    "custom-services": "custom-services",
+  };
+
+  function setupProductCategories() {
+    var select = document.getElementById("product-category-select");
+    var section = document.getElementById("listino-prodotti");
+    var panels = Array.prototype.slice.call(document.querySelectorAll("[data-product-category]"));
+    if (!select || !section || !panels.length || select.dataset.bound === "true") return;
+    select.dataset.bound = "true";
+
+    function activate(category, shouldScroll) {
+      category = categoryMap[category] || category || "bot";
+      var hasPanel = panels.some(function (panel) { return panel.getAttribute("data-product-category") === category; });
+      if (!hasPanel) category = "bot";
+      panels.forEach(function (panel) {
+        var active = panel.getAttribute("data-product-category") === category;
+        panel.hidden = !active;
+        panel.classList.toggle("is-active", active);
+      });
+      select.value = category;
+      if (shouldScroll) section.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.setTimeout(initInteractiveHover, 60);
+    }
+
+    select.addEventListener("change", function () {
+      activate(select.value, false);
+    });
+
+    document.addEventListener("click", function (event) {
+      var link = event.target.closest && event.target.closest('a[href^="#"]');
+      if (!link) return;
+      var hash = (link.getAttribute("href") || "").replace("#", "");
+      if (!categoryMap[hash]) return;
+      event.preventDefault();
+      activate(categoryMap[hash], true);
+      if (history && history.pushState) history.pushState(null, "", "#listino-prodotti");
+    });
+
+    function applyHash() {
+      var hash = (window.location.hash || "").replace("#", "");
+      if (categoryMap[hash]) activate(categoryMap[hash], true);
+    }
+
+    window.addEventListener("hashchange", applyHash);
+    applyHash();
+  }
+
+  var hoverSelector = [
+    "main .card",
+    "main .callout",
+    "main .table-wrap",
+    "main .review-card",
+    "main .reviews-summary",
+    "main .feature-list li",
+    "main .product-notes-card"
+  ].join(",");
+
+  function initInteractiveHover() {
+    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var nodes = Array.prototype.slice.call(document.querySelectorAll(hoverSelector));
+    nodes.forEach(function (node) {
+      if (!node || node.dataset.hoverBound === "true") return;
+      node.dataset.hoverBound = "true";
+      node.classList.add("interactive-hover");
+
+      var frame = null;
+      function reset() {
+        if (frame) cancelAnimationFrame(frame);
+        frame = null;
+        node.classList.remove("is-hovered");
+        node.style.removeProperty("--hover-x");
+        node.style.removeProperty("--hover-y");
+        node.style.removeProperty("--glow-x");
+        node.style.removeProperty("--glow-y");
+      }
+
+      node.addEventListener("pointerenter", function (event) {
+        if (event.pointerType === "touch") return;
+        node.classList.add("is-hovered");
+      });
+
+      node.addEventListener("pointermove", function (event) {
+        if (reduceMotion || event.pointerType === "touch") return;
+        if (frame) cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(function () {
+          var rect = node.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          var px = (event.clientX - rect.left) / rect.width;
+          var py = (event.clientY - rect.top) / rect.height;
+          var dx = (px - 0.5) * 10;
+          var dy = (py - 0.5) * 10;
+          node.classList.add("is-hovered");
+          node.style.setProperty("--hover-x", dx.toFixed(2) + "px");
+          node.style.setProperty("--hover-y", dy.toFixed(2) + "px");
+          node.style.setProperty("--glow-x", (px * 100).toFixed(1) + "%");
+          node.style.setProperty("--glow-y", (py * 100).toFixed(1) + "%");
+        });
+      });
+
+      node.addEventListener("pointerleave", reset);
+      node.addEventListener("pointercancel", reset);
+    });
+  }
+
+  setupProductCategories();
+  initInteractiveHover();
+
+  if ("MutationObserver" in window) {
+    var main = document.querySelector("main");
+    if (main) {
+      var hoverObserver = new MutationObserver(function () {
+        window.requestAnimationFrame(initInteractiveHover);
+      });
+      hoverObserver.observe(main, { childList: true, subtree: true });
+    }
+  }
+
+  document.addEventListener("synapse:content-loaded", function () {
+    setupProductCategories();
+    initInteractiveHover();
+  });
+  window.addEventListener("resize", function () {
+    window.setTimeout(initInteractiveHover, 80);
+  });
+})();

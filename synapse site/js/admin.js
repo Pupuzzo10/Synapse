@@ -155,7 +155,7 @@
     box.appendChild(field("Descrizione", textarea(a.intro, function (v) { a.intro = v; })));
     box.appendChild(field("Footer (ruoli)", textInput(a.footer, function (v) { a.footer = v; })));
     var list = el("div", { class: "admin-sublist" });
-    list.appendChild(el("h5", { text: "Feature list" }));
+    list.appendChild(el("h5", { text: "Feature list — icone: rocket, globe, tag, briefcase, spark" }));
     a.features.forEach(function (f, i) {
       var row = el("div", { class: "admin-row" });
       row.appendChild(el("input", { type: "text", value: f.icon || "", style: "max-width:4rem", oninput: function (e) { f.icon = e.target.value; } }));
@@ -163,7 +163,7 @@
       row.appendChild(el("button", { type: "button", class: "admin-btn-remove", text: "×", onclick: function () { a.features.splice(i, 1); renderActiveTab(); } }));
       list.appendChild(row);
     });
-    list.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ feature", onclick: function () { a.features.push({ icon: "✨", text: "Nuova" }); renderActiveTab(); } }));
+    list.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ feature", onclick: function () { a.features.push({ icon: "spark", text: "Nuova" }); renderActiveTab(); } }));
     box.appendChild(list);
     return box;
   }
@@ -938,7 +938,6 @@
     { id: "logos", label: "Loghi", render: tab_logos },
     { id: "websites", label: "Siti web", render: tab_websites },
     { id: "customServices", label: "Altri servizi", render: tab_customServices },
-    { id: "reviews", label: "Recensioni", render: tab_reviews },
     { id: "notes", label: "Note", render: tab_notes },
     { id: "promotions", label: "Promozioni", render: tab_promotions },
     { id: "tickets", label: "Ticket", render: tab_tickets },

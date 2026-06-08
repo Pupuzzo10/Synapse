@@ -31,14 +31,9 @@
         <span></span><span></span><span></span>
       </button>
       <nav id="site-nav" class="nav">
-        <button type="button" class="nav-report-btn" id="open-report" title="Apri un ticket con lo staff">Apri ticket</button>
         <button type="button" class="nav-chat-btn" id="open-my-chat" hidden title="Apri la chat con il supporto">💬 Chat</button>
         <a href="#chi-siamo">Chi siamo</a>
-        <a href="#bot">Bot</a>
-        <a href="#hosting">Hosting</a>
-        <a href="#codice">Codice</a>
-        <a href="#loghi">Loghi</a>
-        <a href="#siti-web">Siti web</a>
+        <a href="#listino-prodotti">Listino prodotti</a>
         <a href="#recensioni">Recensioni</a>
         <span class="nav-auth-wrap">
           <button type="button" class="nav-auth-open" id="open-auth-modal">Accedi</button>
@@ -73,7 +68,7 @@
         <p class="lead" id="hero-lead"></p>
         <div class="hero-actions">
           <a class="btn btn-primary" id="hero-cta-primary" href="#" target="_blank" rel="noopener noreferrer"></a>
-          <a class="btn btn-ghost" id="hero-cta-secondary" href="#bot"></a>
+          <a class="btn btn-ghost" id="hero-cta-secondary" href="#listino-prodotti"></a>
         </div>
       </div>
     </section>
@@ -89,7 +84,129 @@
 
 
 
-    <section id="recensioni" class="section reviews-section section-alt">
+    <section id="listino-prodotti" class="section section-alt product-pricing-section">
+      <div class="container">
+        <div class="section-head product-pricing-head">
+          <div>
+            <p class="eyebrow product-eyebrow">Listino ufficiale</p>
+            <h2>Listino Prodotti</h2>
+            <p class="section-intro">Tutti i piani Synapse raccolti in un’unica area. Seleziona una categoria dal menu e consulta subito prezzi, funzioni e opzioni disponibili.</p>
+          </div>
+          <label class="product-category-picker" for="product-category-select">
+            <span>Categoria</span>
+            <select id="product-category-select" aria-controls="product-category-panels">
+              <option value="bot">Bot Discord</option>
+              <option value="hosting">Hosting</option>
+              <option value="codice">Codice sorgente</option>
+              <option value="loghi">Loghi</option>
+              <option value="siti-web">Siti web</option>
+              <option value="custom-services">Altri servizi</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="product-category-panels" id="product-category-panels">
+          <div id="bot" class="product-category-panel is-active" data-product-category="bot">
+            <div class="section-head product-panel-head">
+              <h3 id="bot-title"></h3>
+              <p class="section-intro" id="bot-intro"></p>
+            </div>
+
+            <div class="cards cards-bot" id="bot-cards"></div>
+
+            <div class="subsection">
+              <h4 id="emoji-title"></h4>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Quantità</th><th>Prezzo</th><th>Info</th></tr>
+                  </thead>
+                  <tbody id="emoji-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div id="hosting" class="product-category-panel" data-product-category="hosting" hidden>
+            <div class="section-head product-panel-head">
+              <h3 id="hosting-title"></h3>
+            </div>
+
+            <div class="callout callout-hosting">
+              <h4 id="hosting-callout-title"></h4>
+              <ul class="checklist flat" id="hosting-callout-list"></ul>
+            </div>
+
+            <h4 class="subsection-title" id="hosting-tariffs-title"></h4>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Durata</th><th>Prezzo</th><th>Note</th><th>Info</th></tr>
+                </thead>
+                <tbody id="hosting-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="codice" class="product-category-panel" data-product-category="codice" hidden>
+            <div class="section-head product-panel-head">
+              <h3 id="code-title"></h3>
+            </div>
+            <div class="cards cards-two" id="code-cards"></div>
+            <p class="legal-note" id="code-legal"></p>
+          </div>
+
+          <div id="loghi" class="product-category-panel" data-product-category="loghi" hidden>
+            <div class="section-head product-panel-head">
+              <h3 id="logos-title"></h3>
+              <p class="section-intro" id="logos-intro"></p>
+            </div>
+
+            <div class="cards cards-logos" id="logos-cards"></div>
+
+            <div class="callout callout-promo">
+              <h4 id="promo-title"></h4>
+              <p id="promo-body"></p>
+              <p class="muted small" id="promo-footer"></p>
+            </div>
+          </div>
+
+          <div id="siti-web" class="product-category-panel" data-product-category="siti-web" hidden>
+            <div class="section-head product-panel-head">
+              <h3 id="websites-title"></h3>
+              <p class="section-intro" id="websites-intro"></p>
+            </div>
+            <div class="cards cards-websites" id="websites-cards"></div>
+            <div class="subsection">
+              <h4 id="websites-extras-title"></h4>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Extra</th><th>Prezzo</th><th>Note</th><th>Info</th></tr>
+                  </thead>
+                  <tbody id="websites-extras-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div id="custom-services" class="product-category-panel" data-product-category="custom-services" hidden>
+            <div class="section-head product-panel-head">
+              <h3 id="custom-services-title"></h3>
+              <p class="section-intro" id="custom-services-intro"></p>
+            </div>
+            <div class="cards cards-custom-services" id="custom-services-cards"></div>
+          </div>
+        </div>
+
+        <div class="product-notes-card">
+          <h3 id="notes-title"></h3>
+          <p id="notes-body"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="recensioni" class="section reviews-section">
       <div class="container">
         <div class="section-head">
           <h2 id="reviews-title"></h2>
@@ -102,119 +219,6 @@
         <div class="reviews-marquee" aria-label="Recensioni clienti">
           <div class="reviews-track" id="reviews-track"></div>
         </div>
-      </div>
-    </section>
-
-    <section id="bot" class="section section-alt">
-      <div class="container">
-        <div class="section-head">
-          <h2 id="bot-title"></h2>
-          <p class="section-intro" id="bot-intro"></p>
-        </div>
-
-        <div class="cards cards-bot" id="bot-cards"></div>
-
-        <div class="subsection">
-          <h3 id="emoji-title"></h3>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr><th>Quantità</th><th>Prezzo</th><th>Info</th></tr>
-              </thead>
-              <tbody id="emoji-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="hosting" class="section">
-      <div class="container">
-        <div class="section-head">
-          <h2 id="hosting-title"></h2>
-        </div>
-
-        <div class="callout callout-hosting">
-          <h3 id="hosting-callout-title"></h3>
-          <ul class="checklist flat" id="hosting-callout-list"></ul>
-        </div>
-
-        <h3 class="subsection-title" id="hosting-tariffs-title"></h3>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr><th>Durata</th><th>Prezzo</th><th>Note</th><th>Info</th></tr>
-            </thead>
-            <tbody id="hosting-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section id="codice" class="section section-alt">
-      <div class="container">
-        <div class="section-head">
-          <h2 id="code-title"></h2>
-        </div>
-        <div class="cards cards-two" id="code-cards"></div>
-        <p class="legal-note" id="code-legal"></p>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="container narrow">
-        <h2 id="notes-title"></h2>
-        <p id="notes-body"></p>
-      </div>
-    </section>
-
-    <section id="loghi" class="section section-alt">
-      <div class="container">
-        <div class="section-head">
-          <h2 id="logos-title"></h2>
-          <p class="section-intro" id="logos-intro"></p>
-        </div>
-
-        <div class="cards cards-logos" id="logos-cards"></div>
-
-        <div class="callout callout-promo">
-          <h3 id="promo-title"></h3>
-          <p id="promo-body"></p>
-          <p class="muted small" id="promo-footer"></p>
-        </div>
-      </div>
-    </section>
-
-
-
-    <section id="siti-web" class="section">
-      <div class="container">
-        <div class="section-head">
-          <h2 id="websites-title"></h2>
-          <p class="section-intro" id="websites-intro"></p>
-        </div>
-        <div class="cards cards-websites" id="websites-cards"></div>
-        <div class="subsection">
-          <h3 id="websites-extras-title"></h3>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr><th>Extra</th><th>Prezzo</th><th>Note</th><th>Info</th></tr>
-              </thead>
-              <tbody id="websites-extras-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="custom-services" class="section section-alt">
-      <div class="container">
-        <div class="section-head">
-          <h2 id="custom-services-title"></h2>
-          <p class="section-intro" id="custom-services-intro"></p>
-        </div>
-        <div class="cards cards-custom-services" id="custom-services-cards"></div>
       </div>
     </section>
 

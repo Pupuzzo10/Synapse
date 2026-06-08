@@ -128,6 +128,24 @@
     if (ctaS && hero.ctaSecondary) { ctaS.textContent = hero.ctaSecondary.label || ""; ctaS.setAttribute("href", hero.ctaSecondary.href || "#"); }
   }
 
+  function aboutIconSvg(feature) {
+    var raw = String((feature && (feature.icon || feature.text)) || "").toLowerCase();
+    var type = "spark";
+    if (raw.indexOf("🚀") !== -1 || raw.indexOf("bot") !== -1 || raw.indexOf("discord") !== -1 || raw.indexOf("social") !== -1 || raw.indexOf("rocket") !== -1) type = "rocket";
+    else if (raw.indexOf("🌐") !== -1 || raw.indexOf("siti") !== -1 || raw.indexOf("web") !== -1 || raw.indexOf("globe") !== -1) type = "globe";
+    else if (raw.indexOf("💸") !== -1 || raw.indexOf("prezzi") !== -1 || raw.indexOf("listino") !== -1 || raw.indexOf("price") !== -1 || raw.indexOf("tag") !== -1) type = "tag";
+    else if (raw.indexOf("💼") !== -1 || raw.indexOf("progetto") !== -1 || raw.indexOf("misura") !== -1 || raw.indexOf("custom") !== -1 || raw.indexOf("briefcase") !== -1) type = "briefcase";
+
+    var icons = {
+      rocket: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.4 4.2c1.9-1.8 4.4-2.6 6.9-2.3.3 2.5-.5 5-2.3 6.9l-4.7 4.7-3-3 3.1-6.3Z"/><path d="M9.4 10.6 5.9 9.9 3.6 12.2l4.3 1.2"/><path d="m13.4 14.6 1.2 4.3 2.3-2.3-.7-3.5"/><path d="M7.4 16.6c-1 .2-2 .8-2.7 1.5-.8.8-1.3 1.8-1.5 2.7 1-.2 2-.7 2.7-1.5.7-.7 1.3-1.7 1.5-2.7Z"/></svg>',
+      globe: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.3 2.4 3.5 5.4 3.5 9S14.3 18.6 12 21c-2.3-2.4-3.5-5.4-3.5-9S9.7 5.4 12 3Z"/></svg>',
+      tag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 13.2 13.3 20a2.5 2.5 0 0 1-3.5 0L3.6 13.8A2 2 0 0 1 3 12.4V5a2 2 0 0 1 2-2h7.4a2 2 0 0 1 1.4.6l6.4 6.1a2.5 2.5 0 0 1 0 3.5Z"/><circle cx="7.6" cy="7.6" r="1.2"/></svg>',
+      briefcase: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1"/><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 11h18"/><path d="M10 11v2h4v-2"/></svg>',
+      spark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 14.5 9l6.7 3-6.7 3L12 21.2 9.5 15l-6.7-3 6.7-3L12 2.8Z"/></svg>',
+    };
+    return icons[type] || icons.spark;
+  }
+
   function renderAbout(about) {
     about = about || {};
     var title = document.getElementById("about-title");
@@ -140,8 +158,10 @@
       clear(list);
       (about.features || []).forEach(function (f) {
         var li = el("li");
-        li.appendChild(el("span", { class: "icon", text: f.icon || "" }));
-        li.appendChild(document.createTextNode(" " + (f.text || "")));
+        var icon = el("span", { class: "about-icon", "aria-hidden": "true" });
+        icon.innerHTML = aboutIconSvg(f);
+        li.appendChild(icon);
+        li.appendChild(el("span", { class: "feature-text", text: f.text || "" }));
         list.appendChild(li);
       });
     }
@@ -325,7 +345,7 @@
     var intro = document.getElementById("custom-services-intro");
     var cards = document.getElementById("custom-services-cards");
     var services = c.services || [];
-    if (section) section.hidden = !services.length;
+    if (section) section.toggleAttribute("data-empty", !services.length);
     if (title) title.textContent = c.title || "";
     if (intro) intro.textContent = c.intro || "";
     if (cards) {
