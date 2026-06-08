@@ -96,6 +96,7 @@
             <span>Categoria</span>
             <select id="product-category-select" aria-controls="product-category-panels">
               <option value="bot">Bot Discord</option>
+              <option value="emoji-pack">Emoji pack</option>
               <option value="hosting">Hosting</option>
               <option value="codice">Codice sorgente</option>
               <option value="loghi">Loghi</option>
@@ -114,17 +115,14 @@
 
             <div class="cards cards-bot" id="bot-cards"></div>
 
-            <div class="subsection">
-              <h4 id="emoji-title"></h4>
-              <div class="table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr><th>Quantità</th><th>Prezzo</th><th>Info</th></tr>
-                  </thead>
-                  <tbody id="emoji-tbody"></tbody>
-                </table>
-              </div>
+          </div>
+
+          <div id="emoji-pack" class="product-category-panel" data-product-category="emoji-pack" hidden>
+            <div class="section-head product-panel-head">
+              <h3 id="emoji-title"></h3>
+              <p class="section-intro">Pacchetti emoji personalizzati per server Discord, community e identità visual.</p>
             </div>
+            <div class="cards cards-emoji" id="emoji-cards"></div>
           </div>
 
           <div id="hosting" class="product-category-panel" data-product-category="hosting" hidden>
@@ -138,14 +136,7 @@
             </div>
 
             <h4 class="subsection-title" id="hosting-tariffs-title"></h4>
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr><th>Durata</th><th>Prezzo</th><th>Note</th><th>Info</th></tr>
-                </thead>
-                <tbody id="hosting-tbody"></tbody>
-              </table>
-            </div>
+            <div class="cards cards-hosting" id="hosting-cards"></div>
           </div>
 
           <div id="codice" class="product-category-panel" data-product-category="codice" hidden>

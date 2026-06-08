@@ -332,7 +332,7 @@ module.exports = {
 };
 
 module.exports.defaultStatus = {
-  server: "online", // online | degraded | offline
+  server: "online", // online | maintenance | degraded | offline
   service: "active", // active | maintenance | suspended
   message: "Tutti i servizi sono operativi.",
   updatedAt: null,

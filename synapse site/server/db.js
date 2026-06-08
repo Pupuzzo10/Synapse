@@ -27,6 +27,7 @@ function ensureDatabase(dbPath) {
       marketing_opt_in INTEGER NOT NULL DEFAULT 0,
       email_verified_at TEXT,
       is_admin INTEGER NOT NULL DEFAULT 0,
+      staff_role TEXT NOT NULL DEFAULT 'user',
       account_status TEXT NOT NULL DEFAULT 'active',
       account_status_reason TEXT,
       account_status_updated_at TEXT,
@@ -198,6 +199,10 @@ function ensureDatabase(dbPath) {
   if (!hasUserColumn("is_admin")) {
     db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0");
   }
+  if (!hasUserColumn("staff_role")) {
+    db.exec("ALTER TABLE users ADD COLUMN staff_role TEXT NOT NULL DEFAULT 'user'");
+  }
+  db.exec("UPDATE users SET staff_role = 'ceo' WHERE is_admin = 1 AND (staff_role IS NULL OR staff_role = '' OR staff_role = 'user')");
   if (!hasUserColumn("account_status")) {
     db.exec("ALTER TABLE users ADD COLUMN account_status TEXT NOT NULL DEFAULT 'active'");
   }
@@ -295,14 +300,14 @@ function ensureDatabase(dbPath) {
       )
     `),
     findUserByEmail: db.prepare(`
-      SELECT id, username, email, password_hash, marketing_opt_in, email_verified_at, is_admin,
+      SELECT id, username, email, password_hash, marketing_opt_in, email_verified_at, is_admin, staff_role,
         account_status, account_status_reason, account_status_updated_at, account_status_updated_by,
         register_ip, last_ip, last_seen_at, created_at, updated_at
       FROM users
       WHERE email = ?
     `),
     findUserById: db.prepare(`
-      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin,
+      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin, staff_role,
         account_status, account_status_reason, account_status_updated_at, account_status_updated_by,
         register_ip, last_ip, last_seen_at, created_at, updated_at
       FROM users
@@ -312,7 +317,18 @@ function ensureDatabase(dbPath) {
       UPDATE users SET password_hash = @password_hash, updated_at = @updated_at WHERE id = @id
     `),
     setUserAdmin: db.prepare(`
-      UPDATE users SET is_admin = @is_admin, updated_at = @updated_at WHERE id = @id
+      UPDATE users SET
+        is_admin = @is_admin,
+        staff_role = CASE
+          WHEN @is_admin = 0 THEN 'user'
+          WHEN COALESCE(staff_role, 'user') = 'user' THEN 'ceo'
+          ELSE staff_role
+        END,
+        updated_at = @updated_at
+      WHERE id = @id
+    `),
+    setUserStaffRole: db.prepare(`
+      UPDATE users SET is_admin = @is_admin, staff_role = @staff_role, updated_at = @updated_at WHERE id = @id
     `),
     setUserModerationStatus: db.prepare(`
       UPDATE users SET
@@ -327,7 +343,7 @@ function ensureDatabase(dbPath) {
       UPDATE users SET last_ip = @last_ip, last_seen_at = @last_seen_at, updated_at = @updated_at WHERE id = @id
     `),
     findUsersByIp: db.prepare(`
-      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin,
+      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin, staff_role,
         account_status, account_status_reason, account_status_updated_at, account_status_updated_by,
         register_ip, last_ip, last_seen_at, created_at, updated_at
       FROM users
@@ -616,12 +632,29 @@ function ensureDatabase(dbPath) {
     });
   }
 
+  function normalizeStaffRole(role) {
+    const value = String(role || "user").trim().toLowerCase();
+    if (["support", "manager", "ceo", "user"].indexOf(value) === -1) return "user";
+    return value;
+  }
+
   function setUserAdmin(userId, isAdmin) {
     statements.setUserAdmin.run({
       id: userId,
       is_admin: isAdmin ? 1 : 0,
       updated_at: nowIso(),
     });
+  }
+
+  function setUserStaffRole(userId, role) {
+    const staffRole = normalizeStaffRole(role);
+    statements.setUserStaffRole.run({
+      id: userId,
+      is_admin: staffRole === "user" ? 0 : 1,
+      staff_role: staffRole,
+      updated_at: nowIso(),
+    });
+    return findUserById(userId);
   }
 
   function setUserModerationStatus(userId, status, reason, adminId) {
@@ -741,6 +774,7 @@ function ensureDatabase(dbPath) {
     findUserById,
     updateUserPassword,
     setUserAdmin,
+    setUserStaffRole,
     setUserModerationStatus,
     updateUserIp,
     findUsersByIp,

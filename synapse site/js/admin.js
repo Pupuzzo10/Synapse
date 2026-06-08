@@ -24,6 +24,80 @@
   var workingContent = null;
   var workingStatus = null;
   var activeTab = "hero";
+  var currentStaffRole = "user";
+
+  var STAFF_ROLE_LABELS = {
+    user: "Utente",
+    support: "Supporto Clienti",
+    manager: "Manager",
+    ceo: "CEO",
+  };
+
+  var TAB_CAPABILITIES = {
+    hero: "content",
+    about: "content",
+    bot: "content",
+    hosting: "content",
+    code: "content",
+    logos: "content",
+    websites: "content",
+    customServices: "content",
+    notes: "content",
+    promotions: "content",
+    tickets: "support",
+    chats: "support",
+    orders: "orders",
+    presence: "presence",
+    moderation: "moderation",
+    adminAccounts: "users",
+    status: "status",
+  };
+
+  var ROLE_CAPABILITIES = {
+    support: ["support"],
+    manager: ["orders", "presence", "users"],
+    ceo: ["content", "status", "orders", "support", "presence", "users", "moderation", "staffManage"],
+  };
+
+  function normalizeStaffRole(role) {
+    var value = String(role || "user").trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(STAFF_ROLE_LABELS, value) ? value : "user";
+  }
+
+  function staffRoleFromUser(user) {
+    if (!user) return "user";
+    var role = normalizeStaffRole(user.staffRole || user.staff_role);
+    if (role !== "user") return role;
+    return user.isAdmin ? "ceo" : "user";
+  }
+
+  function staffRoleLabel(role) {
+    return STAFF_ROLE_LABELS[normalizeStaffRole(role)] || STAFF_ROLE_LABELS.user;
+  }
+
+  function currentCan(capability) {
+    if (currentStaffRole === "ceo") return true;
+    return (ROLE_CAPABILITIES[currentStaffRole] || []).indexOf(capability) !== -1;
+  }
+
+  function canManageModeration() { return currentCan("moderation"); }
+  function canManageStaff() { return currentCan("staffManage"); }
+
+  function staffRoleOptions(includeUser) {
+    var opts = [];
+    if (includeUser) opts.push({ value: "user", label: "Utente / nessun grado" });
+    opts.push({ value: "support", label: "Supporto Clienti" });
+    opts.push({ value: "manager", label: "Manager" });
+    opts.push({ value: "ceo", label: "CEO" });
+    return opts;
+  }
+
+  function visibleTabs() {
+    return TABS.filter(function (tab) {
+      var capability = TAB_CAPABILITIES[tab.id];
+      return !capability || currentCan(capability);
+    });
+  }
 
   function setMsg(msg, type) {
     if (!feedback) return;
@@ -481,6 +555,7 @@
   }
 
   function appendModerationButtons(target, user, ip, ipBanned) {
+    if (!canManageModeration()) return;
     var actions = el("div", { class: "admin-ticket-actions admin-moderation-actions" });
     if (user && user.id) {
       if ((user.accountStatus || "active") === "active") {
@@ -516,7 +591,7 @@
       var row = el("div", { class: "admin-presence-row admin-ip-ban-row" });
       row.appendChild(el("strong", { text: "IP bannato: " + b.ip }));
       row.appendChild(el("span", { text: "Motivo: " + (b.reason || "—") }));
-      row.appendChild(el("span", { text: "Data: " + (b.createdAt ? new Date(b.createdAt).toLocaleString() : "—") + (b.createdByUsername ? " · Admin: " + b.createdByUsername : "") }));
+      row.appendChild(el("span", { text: "Data: " + (b.createdAt ? new Date(b.createdAt).toLocaleString() : "—") + (b.createdByUsername ? " · Staff: " + b.createdByUsername : "") }));
       appendModerationButtons(row, null, b.ip, true);
       list.appendChild(row);
     });
@@ -533,7 +608,7 @@
     var list = el("div", { class: "admin-users-list" });
     (usersCache || []).forEach(function (u) {
       var row = el("div", { class: "admin-user-row admin-user-row-" + (u.accountStatus || "active") });
-      row.appendChild(el("strong", { text: u.username + (u.isAdmin ? " · Admin" : "") + " · " + accountStatusLabel(u.accountStatus) }));
+      row.appendChild(el("strong", { text: u.username + (u.isAdmin ? " · " + staffRoleLabel(u.staffRole) : "") + " · " + accountStatusLabel(u.accountStatus) }));
       row.appendChild(el("span", { text: u.email }));
       row.appendChild(el("span", { text: "IP registrazione: " + (u.registerIp || "—") + " · ultimo IP: " + (u.lastIp || "—") + (isIpBanned(u.lastIp || u.registerIp) ? " · IP BANNATO" : "") }));
       if (u.accountStatusReason) row.appendChild(el("span", { class: "admin-warning-text", text: "Motivo: " + u.accountStatusReason }));
@@ -557,7 +632,7 @@
     box.appendChild(head);
     var stats = el("div", { class: "admin-stat-grid" });
     stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + (presenceCache.total || 0) + "</strong><span>Connessioni attive</span>" }));
-    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + (presenceCache.online ? "Sì" : "No") + "</strong><span>Admin online</span>" }));
+    stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + (presenceCache.online ? "Sì" : "No") + "</strong><span>Staff online</span>" }));
     stats.appendChild(el("div", { class: "admin-stat-card", html: "<strong>" + ((ipBansCache || []).length) + "</strong><span>IP bannati</span>" }));
     box.appendChild(stats);
     var live = el("div", { class: "admin-section-card" });
@@ -565,9 +640,9 @@
     var list = el("div", { class: "admin-presence-list" });
     (presenceCache.clients || []).forEach(function (c) {
       var linked = c.linkedAccounts || [];
-      var currentAccount = linked.find(function (u) { return u.id === c.userId; }) || (c.userId ? { id: c.userId, username: c.username, email: c.email, isAdmin: c.isAdmin, accountStatus: "active" } : null);
+      var currentAccount = linked.find(function (u) { return u.id === c.userId; }) || (c.userId ? { id: c.userId, username: c.username, email: c.email, isAdmin: c.isAdmin, staffRole: c.staffRole, accountStatus: "active" } : null);
       var row = el("div", { class: "admin-presence-row" + (linked.length > 1 ? " has-warning" : "") });
-      row.appendChild(el("strong", { text: (c.username || "Visitatore") + (c.isAdmin ? " · Admin" : "") + " · " + accountStatusLabel(currentAccount && currentAccount.accountStatus) }));
+      row.appendChild(el("strong", { text: (c.username || "Visitatore") + (c.isAdmin ? " · " + staffRoleLabel(currentAccount && currentAccount.staffRole) : "") + " · " + accountStatusLabel(currentAccount && currentAccount.accountStatus) }));
       row.appendChild(el("span", { text: c.email || (c.userId ? "Account #" + c.userId : "Visitatore non registrato") }));
       row.appendChild(el("span", { text: "IP connessione: " + (c.ip || "non rilevato") + (c.ipBanned || isIpBanned(c.ip) ? " · IP BANNATO" : "") }));
       row.appendChild(el("span", { text: "Stesso IP online: " + (c.ipSharedOnlineCount || 0) + " · Account collegati: " + linked.length }));
@@ -582,7 +657,7 @@
     if (!(presenceCache.clients || []).length) list.appendChild(el("p", { class: "muted small", text: "Nessuna connessione rilevata." }));
     live.appendChild(list);
     box.appendChild(live);
-    box.appendChild(renderActiveIpBanList());
+    if (canManageModeration()) box.appendChild(renderActiveIpBanList());
     return box;
   }
 
@@ -611,35 +686,62 @@
       })
       .catch(function () { /* ignore */ });
   }
+  function updateStaffRole(userId, staffRole) {
+    return fetch(appBaseUrl + "/api/admin/users/" + userId + "/staff-role", {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+      body: JSON.stringify({ staffRole: staffRole }),
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
   function tab_adminAccounts() {
-    var state = tab_adminAccounts.state = tab_adminAccounts.state || { username: "", email: "", password: "" };
+    var state = tab_adminAccounts.state = tab_adminAccounts.state || { username: "", email: "", password: "", staffRole: "support" };
     var box = el("div");
     box.appendChild(el("h3", { text: "Account amministratori" }));
-    box.appendChild(field("Nome utente nuovo admin", textInput(state.username, function (v) { state.username = v; })));
-    box.appendChild(field("Email nuovo admin", textInput(state.email, function (v) { state.email = v; })));
-    var pass = el("input", { type: "password", value: state.password || "", minlength: "8", maxlength: "72", oninput: function (e) { state.password = e.target.value; } });
-    box.appendChild(field("Password nuovo admin", pass));
-    box.appendChild(el("p", { class: "muted small", text: "La password deve avere almeno 8 caratteri. L'account creato sarà subito admin e verificato." }));
-    box.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Crea account admin", onclick: function () {
-      fetch(appBaseUrl + "/api/admin/users/admin", {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
-        body: JSON.stringify(state),
-      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-        .then(function (resp) {
-          if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Errore"); return; }
-          tab_adminAccounts.state = { username: "", email: "", password: "" };
-          loadUsers();
-        });
-    } }));
+
+    if (canManageStaff()) {
+      box.appendChild(field("Nome utente nuovo staff", textInput(state.username, function (v) { state.username = v; })));
+      box.appendChild(field("Email nuovo staff", textInput(state.email, function (v) { state.email = v; })));
+      var pass = el("input", { type: "password", value: state.password || "", minlength: "8", maxlength: "72", oninput: function (e) { state.password = e.target.value; } });
+      box.appendChild(field("Password nuovo staff", pass));
+      box.appendChild(field("Grado staff", select(state.staffRole || "support", staffRoleOptions(false), function (v) { state.staffRole = v; })));
+      box.appendChild(el("p", { class: "muted small", text: "La password deve avere almeno 8 caratteri. L'account creato sarà subito verificato con il grado scelto." }));
+      box.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Crea account staff", onclick: function () {
+        fetch(appBaseUrl + "/api/admin/users/admin", {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
+          body: JSON.stringify(state),
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (resp) {
+            if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Errore"); return; }
+            tab_adminAccounts.state = { username: "", email: "", password: "", staffRole: "support" };
+            loadUsers();
+          });
+      } }));
+    } else {
+      box.appendChild(el("p", { class: "muted small", text: "Vista in sola lettura: puoi consultare utenti e gradi staff, ma solo il CEO può creare account o modificare i gradi." }));
+    }
+
     var list = el("div", { class: "admin-users-list" });
     (usersCache || []).forEach(function (u) {
       var row = el("div", { class: "admin-user-row" });
-      row.appendChild(el("strong", { text: u.username + (u.isAdmin ? " · Admin" : "") + " · " + accountStatusLabel(u.accountStatus) }));
+      row.appendChild(el("strong", { text: u.username + (u.isAdmin ? " · " + staffRoleLabel(u.staffRole) : "") + " · " + accountStatusLabel(u.accountStatus) }));
       row.appendChild(el("span", { text: u.email }));
       row.appendChild(el("span", { text: "IP registrazione: " + (u.registerIp || "—") + " · ultimo IP: " + (u.lastIp || "—") }));
       if (u.accountStatusReason) row.appendChild(el("span", { class: "admin-warning-text", text: "Motivo: " + u.accountStatusReason }));
       row.appendChild(el("span", { text: "Creato: " + new Date(u.createdAt).toLocaleString() }));
+      if (canManageStaff()) {
+        var roleControl = el("div", { class: "admin-role-control" });
+        roleControl.appendChild(el("span", { class: "admin-label", text: "Grado" }));
+        roleControl.appendChild(select(normalizeStaffRole(u.staffRole), staffRoleOptions(true), function (nextRole) {
+          if (!confirm("Impostare il grado di " + (u.username || u.email) + " su " + staffRoleLabel(nextRole) + "?")) { renderActiveTab(); return; }
+          updateStaffRole(u.id, nextRole).then(function (resp) {
+            if (!resp.ok || !resp.data.ok) { alert(resp.data.message || "Aggiornamento grado non riuscito"); return; }
+            loadUsers();
+          });
+        }));
+        row.appendChild(roleControl);
+      }
       appendModerationButtons(row, u, u.lastIp || u.registerIp, isIpBanned(u.lastIp || u.registerIp));
       list.appendChild(row);
     });
@@ -650,6 +752,7 @@
     box.appendChild(list);
     return box;
   }
+
 
   // === TAB TICKET (gestita lato server, non parte di workingContent) ===
   var ticketsCache = [];
@@ -880,10 +983,10 @@
     (chatsCache || []).forEach(function (c) {
       var card = el("div", { class: "admin-ticket admin-chat-row admin-chat-" + c.status + (c.needsAdmin && c.status !== "closed" ? " admin-chat-needs-admin" : "") });
       var header = el("div", { class: "admin-ticket-head" });
-      header.appendChild(el("span", { class: "chat-status-pill", "data-status": c.needsAdmin ? "needs-admin" : c.status, text: c.needsAdmin && c.status !== "closed" ? "Admin richiesto" : chatStatusLabel(c.status) }));
+      header.appendChild(el("span", { class: "chat-status-pill", "data-status": c.needsAdmin ? "needs-admin" : c.status, text: c.needsAdmin && c.status !== "closed" ? "Staff richiesto" : chatStatusLabel(c.status) }));
       header.appendChild(el("span", { class: "admin-ticket-meta", text: "Chat #" + c.id + " · Ticket #" + c.ticketId + " · " + (c.username || c.userEmail || "Utente") + " · aggiornata " + timeAgo(c.updatedAt) }));
       card.appendChild(header);
-      card.appendChild(el("p", { class: "muted small", text: "Gestione: " + (c.aiEnabled && !c.needsAdmin ? "AI attiva" : "staff") + " · Admin assegnato: " + (c.adminUsername || "Staff") + " · Creata: " + (c.createdAt ? new Date(c.createdAt).toLocaleString() : "—") }));
+      card.appendChild(el("p", { class: "muted small", text: "Gestione: " + (c.aiEnabled && !c.needsAdmin ? "AI attiva" : "staff") + " · Staff assegnato: " + (c.adminUsername || "Staff") + " · Creata: " + (c.createdAt ? new Date(c.createdAt).toLocaleString() : "—") }));
       var actions = el("div", { class: "admin-ticket-actions" });
       actions.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Apri conversazione", onclick: function () { if (window.SynapseChat && window.SynapseChat.open) window.SynapseChat.open(c.id); } }));
       if (c.status !== "closed") {
@@ -914,12 +1017,13 @@
     var box = el("div");
     box.appendChild(field("Stato server", select(s.server, [
       { value: "online", label: "Online" },
+      { value: "maintenance", label: "In manutenzione" },
       { value: "degraded", label: "Degradato" },
       { value: "offline", label: "Offline" },
     ], function (v) { s.server = v; })));
     box.appendChild(field("Stato servizio", select(s.service, [
       { value: "active", label: "Attivo" },
-      { value: "maintenance", label: "Manutenzione" },
+      { value: "maintenance", label: "In manutenzione" },
       { value: "suspended", label: "Sospeso" },
     ], function (v) { s.service = v; })));
     box.appendChild(field("Messaggio pubblico", textarea(s.message, function (v) { s.message = v; })));
@@ -945,7 +1049,7 @@
     { id: "chats", label: "Chat live", render: tab_chats },
     { id: "presence", label: "Presenza live", render: tab_presence },
     { id: "moderation", label: "Moderazione", render: tab_moderation },
-    { id: "adminAccounts", label: "Utenti / Admin", render: tab_adminAccounts },
+    { id: "adminAccounts", label: "Utenti / Staff", render: tab_adminAccounts },
     { id: "status", label: "Stato servizio", render: tab_status },
   ];
 
@@ -972,7 +1076,10 @@
     clear(tabsNav);
     var alerts = humanAlertCount();
     updateAdminNavAlert();
-    TABS.forEach(function (t) {
+    if (saveBtn) saveBtn.hidden = !currentCan("content");
+    var tabs = visibleTabs();
+    if (!tabs.some(function (x) { return x.id === activeTab; }) && tabs.length) activeTab = tabs[0].id;
+    tabs.forEach(function (t) {
       var cls = "admin-tab" + (t.id === activeTab ? " is-active" : "");
       var attrs = { type: "button", class: cls, text: t.label, onclick: function () { activeTab = t.id; renderTabs(); renderActiveTab(); } };
       if ((t.id === "tickets" || t.id === "chats") && alerts > 0) {
@@ -988,8 +1095,10 @@
   function renderActiveTab() {
     if (!tabsBody) return;
     clear(tabsBody);
-    var t = TABS.find(function (x) { return x.id === activeTab; });
-    if (t) tabsBody.appendChild(t.render());
+    var tabs = visibleTabs();
+    var t = tabs.find(function (x) { return x.id === activeTab; }) || tabs[0];
+    if (t) { activeTab = t.id; tabsBody.appendChild(t.render()); }
+    else tabsBody.appendChild(el("p", { class: "muted", text: "Nessuna area disponibile per questo grado staff." }));
   }
 
   function openModal() {
@@ -1053,40 +1162,50 @@
   // Mostra/nasconde il bottone Admin in base a user.isAdmin
   document.addEventListener("synapse:auth-changed", function (ev) {
     var user = ev.detail && ev.detail.user;
-    if (openBtn) openBtn.hidden = !(user && user.isAdmin);
-    if (user && user.isAdmin) { loadTickets(); loadOrders(); loadChats(); loadPresence(); loadUsers(); loadIpBans(); }
+    currentStaffRole = staffRoleFromUser(user);
+    if (openBtn) {
+      openBtn.hidden = !(user && user.isAdmin);
+      if (user && user.isAdmin) openBtn.textContent = staffRoleLabel(currentStaffRole);
+      else openBtn.textContent = "Admin";
+    }
+    if (user && user.isAdmin) {
+      if (currentCan("support")) { loadTickets(); loadChats(); }
+      if (currentCan("orders")) loadOrders();
+      if (currentCan("presence")) loadPresence();
+      if (currentCan("users")) loadUsers();
+      if (currentCan("moderation")) loadIpBans();
+    }
   });
 
   // Aggiornamenti realtime dei ticket per l'admin
   document.addEventListener("synapse:tickets-changed", function () {
-    loadTickets();
-    loadChats();
+    if (currentCan("support")) { loadTickets(); loadChats(); }
   });
 
   document.addEventListener("synapse:orders-changed", function () {
-    loadOrders();
+    if (currentCan("orders")) loadOrders();
   });
 
   document.addEventListener("synapse:chat-event", function () {
-    loadChats();
-    loadTickets();
+    if (currentCan("support")) { loadChats(); loadTickets(); }
   });
 
   document.addEventListener("synapse:presence", function (ev) {
+    if (!currentCan("presence") && !currentCan("moderation")) return;
     presenceCache = ev.detail || presenceCache;
     ipBansCache = presenceCache.activeIpBans || ipBansCache;
     if (activeTab === "presence" || activeTab === "moderation") renderActiveTab();
   });
 
   document.addEventListener("synapse:users-changed", function () {
-    loadUsers();
-    loadPresence();
+    if (currentCan("users")) loadUsers();
+    if (currentCan("presence")) loadPresence();
   });
 
   document.addEventListener("synapse:moderation-changed", function () {
-    loadUsers();
-    loadPresence();
-    loadIpBans();
+    if (currentCan("users")) loadUsers();
+    if (currentCan("presence")) loadPresence();
+    if (currentCan("moderation")) loadIpBans();
   });
 
   window.setInterval(function () {
@@ -1095,7 +1214,8 @@
     if (activeTab === "tickets") { loadTickets(); loadChats(); }
     else if (activeTab === "orders") { loadOrders(); }
     else if (activeTab === "chats") { loadChats(); loadTickets(); }
-    else if (activeTab === "presence" || activeTab === "moderation") { loadPresence(); loadUsers(); loadIpBans(); }
-    else if (activeTab === "adminAccounts") { loadUsers(); }
+    else if (activeTab === "presence") { if (currentCan("presence")) loadPresence(); if (currentCan("users")) loadUsers(); }
+    else if (activeTab === "moderation") { if (currentCan("presence")) loadPresence(); if (currentCan("users")) loadUsers(); if (currentCan("moderation")) loadIpBans(); }
+    else if (activeTab === "adminAccounts") { if (currentCan("users")) loadUsers(); }
   }, 9000);
 })();

@@ -28,6 +28,7 @@
   var navUserWrap = document.getElementById("nav-user-wrap");
   var navUserLabel = document.getElementById("nav-user-label");
   var logoutBtn = document.getElementById("auth-logout");
+  var adminBtn = document.getElementById("open-admin");
   var authBanner = document.getElementById("auth-feedback");
   var lastFocus = null;
   var appBaseUrl = resolveAppBaseUrl();
@@ -119,16 +120,25 @@
     setMessage(authBanner, "");
   }
 
+  function staffRoleLabel(user) {
+    var role = String((user && (user.staffRole || user.staff_role)) || (user && user.isAdmin ? "ceo" : "user")).toLowerCase();
+    return { support: "Supporto Clienti", manager: "Manager", ceo: "CEO", user: "Admin" }[role] || "Admin";
+  }
+
   function updateNav(user) {
     if (openBtn && navUserWrap && navUserLabel) {
       if (user) {
         openBtn.hidden = true;
         navUserWrap.hidden = false;
         navUserLabel.textContent = user.username || user.email || "Account";
+        navUserLabel.title = user.username || user.email || "Account";
+        if (adminBtn) adminBtn.textContent = user.isAdmin ? staffRoleLabel(user) : "Admin";
       } else {
         openBtn.hidden = false;
         navUserWrap.hidden = true;
         navUserLabel.textContent = "";
+        navUserLabel.removeAttribute("title");
+        if (adminBtn) adminBtn.textContent = "Admin";
       }
     }
     try {

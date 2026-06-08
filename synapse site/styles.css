@@ -3184,3 +3184,82 @@ main {
     transition: border-color .12s ease, box-shadow .12s ease;
   }
 }
+
+/* === Patch gradi staff, status animato e listino uniforme === */
+.nav-user:not([hidden]) {
+  max-width: min(360px, 52vw);
+}
+
+.nav-user-label {
+  max-width: 12.5rem;
+}
+
+@media (max-width: 1180px) {
+  .nav-user-label {
+    max-width: min(16rem, 62vw);
+  }
+}
+
+.status-dot {
+  position: relative;
+  flex: 0 0 auto;
+  animation: synapse-status-pulse 1.8s ease-in-out infinite;
+}
+
+.status-dot::after {
+  content: "";
+  position: absolute;
+  inset: -0.42rem;
+  border-radius: inherit;
+  border: 1px solid currentColor;
+  opacity: .32;
+  animation: synapse-status-ring 1.8s ease-out infinite;
+}
+
+@keyframes synapse-status-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.22); filter: brightness(1.2); }
+}
+
+@keyframes synapse-status-ring {
+  0% { transform: scale(.65); opacity: .42; }
+  70%, 100% { transform: scale(1.55); opacity: 0; }
+}
+
+.cards-hosting,
+.cards-emoji {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.card-simple-product .price {
+  margin-bottom: 1rem;
+}
+
+.admin-role-control {
+  display: grid;
+  gap: .35rem;
+  margin-top: .4rem;
+  max-width: 280px;
+}
+
+.admin-role-control select {
+  width: 100%;
+  color: var(--text);
+  color-scheme: dark;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 12px;
+  padding: .65rem .75rem;
+  font: inherit;
+  font-weight: 700;
+}
+
+.admin-role-control select option {
+  color: #fff;
+  background: #141414;
+}
+.status-dot[data-state="ok"] { color: #22c55e; }
+.status-dot[data-state="warn"] { color: #f59e0b; }
+.status-dot[data-state="err"] { color: #ef4444; }

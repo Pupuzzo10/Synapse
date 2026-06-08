@@ -34,7 +34,8 @@ async function seedAdmin(authDb, config) {
 
   if (existing) {
     authDb.updateUserPassword(existing.id, passwordHash);
-    authDb.setUserAdmin(existing.id, true);
+    if (authDb.setUserStaffRole) authDb.setUserStaffRole(existing.id, "ceo");
+    else authDb.setUserAdmin(existing.id, true);
     return { created: false, userId: existing.id };
   }
 
@@ -44,7 +45,8 @@ async function seedAdmin(authDb, config) {
     passwordHash,
     marketingOptIn: false,
   });
-  authDb.setUserAdmin(user.id, true);
+  if (authDb.setUserStaffRole) authDb.setUserStaffRole(user.id, "ceo");
+  else authDb.setUserAdmin(user.id, true);
   return { created: true, userId: user.id };
 }
 
@@ -80,9 +82,14 @@ function getStatus(authDb) {
 }
 
 function saveStatus(authDb, status) {
+  status = status || {};
+  const allowedServer = ["online", "maintenance", "degraded", "offline"];
+  const allowedService = ["active", "maintenance", "suspended"];
+  const server = allowedServer.indexOf(status.server) !== -1 ? status.server : "online";
+  const service = allowedService.indexOf(status.service) !== -1 ? status.service : "active";
   const next = {
-    server: status.server || "online",
-    service: status.service || "active",
+    server,
+    service,
     message: typeof status.message === "string" ? status.message : "",
     updatedAt: new Date().toISOString(),
   };

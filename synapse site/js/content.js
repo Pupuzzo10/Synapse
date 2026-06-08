@@ -100,6 +100,32 @@
     }
   }
 
+  function priceElement(price) {
+    var value = String(price || "").trim();
+    var p = el("p", { class: "price" + (value === "0,00" || value === "0,00€" ? " price-zero" : "") });
+    if (/^[0-9]/.test(value) && value.indexOf("€") === -1) {
+      p.appendChild(el("span", { class: "currency", text: "€" }));
+      p.appendChild(document.createTextNode(value));
+    } else {
+      p.textContent = value || "Da confermare";
+    }
+    return p;
+  }
+
+  function renderSimpleProductCard(opts) {
+    opts = opts || {};
+    var card = el("article", { class: "card card-plan card-simple-product" + (opts.featured ? " card-featured" : "") });
+    renderBadge(card, opts);
+    card.appendChild(el("h3", { text: opts.name || "Prodotto" }));
+    card.appendChild(priceElement(opts.price || ""));
+    if (opts.tagline) card.appendChild(el("p", { class: "card-tagline", text: opts.tagline }));
+    var ul = el("ul", { class: "checklist" });
+    (opts.features || []).forEach(function (text) { ul.appendChild(el("li", { text: text || "" })); });
+    card.appendChild(ul);
+    card.appendChild(ticketButton(opts.category || "Prodotto Synapse", opts.name || "Prodotto", String(opts.price || "").replace("€", "")));
+    return card;
+  }
+
   function renderHero(hero) {
     hero = hero || {};
     var eyebrow = document.getElementById("hero-eyebrow");
@@ -173,10 +199,7 @@
     var card = el("article", { class: "card card-plan" + (plan.featured ? " card-featured" : "") });
     renderBadge(card, plan);
     card.appendChild(el("h3", { text: plan.name || "" }));
-    var priceP = el("p", { class: "price" + (plan.price === "0,00" ? " price-zero" : "") });
-    priceP.appendChild(el("span", { class: "currency", text: "€" }));
-    priceP.appendChild(document.createTextNode(plan.price || ""));
-    card.appendChild(priceP);
+    card.appendChild(priceElement(plan.price || ""));
     var ul = el("ul", { class: "checklist" });
     (plan.features || []).forEach(function (f) {
       var li = el("li", { text: f.text || "" });
@@ -193,10 +216,7 @@
     var card = el("article", { class: "card card-logo" + (plan.featured ? " card-featured" : "") });
     renderBadge(card, plan);
     card.appendChild(el("h3", { text: plan.name || "" }));
-    var priceP = el("p", { class: "price" + (plan.price === "0,00" ? " price-zero" : "") });
-    priceP.appendChild(el("span", { class: "currency", text: "€" }));
-    priceP.appendChild(document.createTextNode(plan.price || ""));
-    card.appendChild(priceP);
+    card.appendChild(priceElement(plan.price || ""));
     var ul = el("ul", { class: "bullet-list" });
     (plan.features || []).forEach(function (f) { ul.appendChild(el("li", { text: f.text || "" })); });
     card.appendChild(ul);
@@ -216,17 +236,20 @@
       (bot.plans || []).forEach(function (p) { cards.appendChild(renderPlanCard(p, "Bot Discord")); });
     }
     var emojiTitle = document.getElementById("emoji-title");
-    var emojiBody = document.getElementById("emoji-tbody");
+    var emojiCards = document.getElementById("emoji-cards");
     if (bot.emojiPack) {
       if (emojiTitle) emojiTitle.textContent = bot.emojiPack.title || "";
-      if (emojiBody) {
-        clear(emojiBody);
-        (bot.emojiPack.rows || []).forEach(function (r) {
-          var tr = el("tr");
-          tr.appendChild(el("td", { text: r.quantity || "" }));
-          tr.appendChild(el("td", { text: r.price || "" }));
-          tr.appendChild(el("td", {}, ticketButton("Emoji pack", r.quantity || "Emoji pack", String(r.price || "").replace("€", ""))));
-          emojiBody.appendChild(tr);
+      if (emojiCards) {
+        clear(emojiCards);
+        (bot.emojiPack.rows || []).forEach(function (r, idx) {
+          emojiCards.appendChild(renderSimpleProductCard({
+            name: r.quantity || "Emoji pack",
+            price: r.price || "",
+            category: "Emoji pack",
+            badge: idx === 2 ? "Scelto spesso" : "",
+            featured: idx === 2,
+            features: ["Emoji personalizzate", "Formato pronto per Discord", "Stile coordinato con la community"],
+          }));
         });
       }
     }
@@ -238,20 +261,24 @@
     var calloutTitle = document.getElementById("hosting-callout-title");
     var calloutList = document.getElementById("hosting-callout-list");
     var tariffsTitle = document.getElementById("hosting-tariffs-title");
-    var tbody = document.getElementById("hosting-tbody");
+    var cards = document.getElementById("hosting-cards");
     if (title) title.textContent = h.title || "";
     if (calloutTitle) calloutTitle.textContent = h.calloutTitle || "";
     if (calloutList) { clear(calloutList); (h.calloutItems || []).forEach(function (t) { calloutList.appendChild(el("li", { text: t })); }); }
     if (tariffsTitle) tariffsTitle.textContent = h.tariffsTitle || "";
-    if (tbody) {
-      clear(tbody);
-      (h.rows || []).forEach(function (r) {
-        var tr = el("tr");
-        tr.appendChild(el("td", { text: r.duration || "" }));
-        tr.appendChild(el("td", { text: r.price || "" }));
-        tr.appendChild(el("td", { text: r.note || "" }));
-        tr.appendChild(el("td", {}, ticketButton("Hosting", r.duration || "Hosting", String(r.price || "").replace("€", ""))));
-        tbody.appendChild(tr);
+    if (cards) {
+      clear(cards);
+      (h.rows || []).forEach(function (r, idx) {
+        var features = ["Hosting personale Synapse", "Supporto configurazione incluso"];
+        if (r.note && r.note !== "—") features.push(r.note);
+        cards.appendChild(renderSimpleProductCard({
+          name: r.duration || "Hosting",
+          price: r.price || "",
+          category: "Hosting",
+          badge: /anno|best/i.test(String(r.duration || "") + " " + String(r.note || "")) ? "Best deal" : "",
+          featured: /anno|best/i.test(String(r.duration || "") + " " + String(r.note || "")),
+          features: features,
+        }));
       });
     }
   }
@@ -300,10 +327,7 @@
     renderBadge(card, plan.featured && !plan.badge ? Object.assign({}, plan, { badge: "Altamente consigliato" }) : plan);
     card.appendChild(el("h3", { text: plan.name || "" }));
     if (plan.tagline) card.appendChild(el("p", { class: "card-tagline", text: plan.tagline }));
-    var priceP = el("p", { class: "price" });
-    priceP.appendChild(el("span", { class: "currency", text: "€" }));
-    priceP.appendChild(document.createTextNode(plan.price || ""));
-    card.appendChild(priceP);
+    card.appendChild(priceElement(plan.price || ""));
     if (plan.recommendedFor) {
       card.appendChild(el("p", { class: "recommended-strip", text: (plan.featured ? "Top consigliato: " : "Consigliato per: ") + plan.recommendedFor }));
     }
@@ -355,7 +379,7 @@
         renderBadge(card, svc);
         card.appendChild(el("h3", { text: svc.title || "" }));
         if (svc.description) card.appendChild(el("p", { class: "card-tagline", text: svc.description }));
-        if (svc.price) card.appendChild(el("p", { class: "custom-service-price", text: svc.price }));
+        if (svc.price) card.appendChild(priceElement(svc.price));
         var ul = el("ul", { class: "bullet-list" });
         (svc.features || []).forEach(function (t) { ul.appendChild(el("li", { text: t || "" })); });
         card.appendChild(ul);
@@ -429,12 +453,12 @@
     var label = document.getElementById("status-label");
     var detail = document.getElementById("status-detail");
     if (!dot || !label) return;
-    var serverCls = s.server === "online" ? "ok" : s.server === "degraded" ? "warn" : "err";
+    var serverCls = s.server === "online" ? "ok" : (s.server === "degraded" || s.server === "maintenance") ? "warn" : "err";
     var serviceCls = s.service === "active" ? "ok" : s.service === "maintenance" ? "warn" : "err";
     var overall = serverCls === "ok" && serviceCls === "ok" ? "ok" : serverCls === "err" || serviceCls === "err" ? "err" : "warn";
     dot.setAttribute("data-state", overall);
-    var serverTxt = s.server === "online" ? "Online" : s.server === "degraded" ? "Prestazioni ridotte" : "Offline";
-    var serviceTxt = s.service === "active" ? "servizi attivi" : s.service === "maintenance" ? "manutenzione" : "servizi sospesi";
+    var serverTxt = s.server === "online" ? "Online" : s.server === "maintenance" ? "In manutenzione" : s.server === "degraded" ? "Prestazioni ridotte" : "Offline";
+    var serviceTxt = s.service === "active" ? "servizi attivi" : s.service === "maintenance" ? "servizi in manutenzione" : "servizi sospesi";
     label.textContent = "Synapse Status · " + serverTxt + " · " + serviceTxt;
     if (detail) detail.textContent = s.message || "Monitoraggio automatico attivo";
   }

@@ -16,7 +16,48 @@ const { createBroadcaster } = require("./events");
 const { createSupport } = require("./support");
 const { createOrders } = require("./orders");
 
+const STAFF_ROLE_LABELS = {
+  user: "Utente",
+  support: "Supporto Clienti",
+  manager: "Manager",
+  ceo: "CEO",
+};
+
+const STAFF_CAPABILITIES = {
+  support: ["support"],
+  manager: ["orders", "presence", "users"],
+  ceo: ["content", "status", "orders", "support", "presence", "users", "moderation", "staffManage"],
+};
+
+function normalizeStaffRole(role) {
+  const value = String(role || "user").trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(STAFF_ROLE_LABELS, value) ? value : "user";
+}
+
+function getStaffRole(user) {
+  if (!user) return "user";
+  const role = normalizeStaffRole(user.staff_role || user.staffRole);
+  if (role !== "user") return role;
+  return user.is_admin ? "ceo" : "user";
+}
+
+function staffRoleLabel(role) {
+  return STAFF_ROLE_LABELS[normalizeStaffRole(role)] || STAFF_ROLE_LABELS.user;
+}
+
+function isStaffUser(user) {
+  return getStaffRole(user) !== "user" || !!(user && user.is_admin);
+}
+
+function hasStaffCapability(user, capability) {
+  const role = getStaffRole(user);
+  if (role === "ceo") return true;
+  const list = STAFF_CAPABILITIES[role] || [];
+  return list.indexOf(capability) !== -1;
+}
+
 function serializeUser(user) {
+  const staffRole = getStaffRole(user);
   return {
     id: user.id,
     username: user.username,
@@ -24,7 +65,9 @@ function serializeUser(user) {
     marketingOptIn: Boolean(user.marketing_opt_in),
     emailVerified: Boolean(user.email_verified_at),
     emailVerifiedAt: user.email_verified_at,
-    isAdmin: Boolean(user.is_admin),
+    isAdmin: isStaffUser(user),
+    staffRole,
+    staffRoleLabel: staffRoleLabel(staffRole),
     accountStatus: user.account_status || "active",
     accountStatusReason: user.account_status_reason || null,
     accountStatusUpdatedAt: user.account_status_updated_at || null,
@@ -237,7 +280,7 @@ function createApp(overrides = {}) {
     // Logout e CSRF restano disponibili per permettere al client di ripulire la sessione.
     if (req.path === "/auth/logout" || req.path === "/auth/csrf-token") return next();
     const accountBlock = blockInfoFromUser(req.sessionUser);
-    const ipBlock = req.ipBan && !(req.sessionUser && req.sessionUser.is_admin) ? blockInfoFromIpBan(req.ipBan) : null;
+    const ipBlock = req.ipBan && !(req.sessionUser && isStaffUser(req.sessionUser)) ? blockInfoFromIpBan(req.ipBan) : null;
     const block = accountBlock || ipBlock;
     if (block) return res.status(403).json({ ok: false, blocked: true, block, message: block.message });
     next();
@@ -521,7 +564,7 @@ function createApp(overrides = {}) {
 
   app.get("/api/events", function (req, res) {
     const accountBlock = blockInfoFromUser(req.sessionUser);
-    const ipBlock = req.ipBan && !(req.sessionUser && req.sessionUser.is_admin) ? blockInfoFromIpBan(req.ipBan) : null;
+    const ipBlock = req.ipBan && !(req.sessionUser && isStaffUser(req.sessionUser)) ? blockInfoFromIpBan(req.ipBan) : null;
     if (accountBlock || ipBlock) return res.status(403).end();
     res.set({
       "Content-Type": "text/event-stream",
@@ -538,12 +581,13 @@ function createApp(overrides = {}) {
     let currentUser = null;
     if (req.authSession && req.authSession.userId) {
       currentUser = authDb.findUserById(req.authSession.userId);
-      if (currentUser && currentUser.is_admin) isAdminClient = true;
+      if (currentUser && isStaffUser(currentUser)) isAdminClient = true;
     }
     const page = typeof req.query.page === "string" && req.query.page.trim() ? req.query.page.trim().slice(0, 120) : "Sito";
     broadcaster.addClient(res, req.authSession && req.authSession.userId, {
       sessionId: req.authSession && req.authSession.id,
       isAdmin: isAdminClient,
+      staffRole: currentUser && getStaffRole(currentUser),
       username: currentUser && currentUser.username,
       email: currentUser && currentUser.email,
       ip: req.clientIp,
@@ -583,7 +627,7 @@ function createApp(overrides = {}) {
     broadcaster.broadcast("presence", enrichPresenceSnapshot(broadcaster.presenceSnapshot()), { userIds: adminUserIds() });
   }
 
-  app.get("/api/presence", requireAdmin, function (req, res) {
+  app.get("/api/presence", requireStaffCapability("presence"), function (req, res) {
     res.json({ ok: true, presence: enrichPresenceSnapshot(broadcaster.presenceSnapshot()) });
   });
 
@@ -608,29 +652,46 @@ function createApp(overrides = {}) {
 
   function requireAdmin(req, res, next) {
     requireAuth(req, res, function () {
-      if (!req.currentUser.is_admin) {
-        return res.status(403).json({ ok: false, message: "Accesso riservato agli amministratori." });
+      if (!isStaffUser(req.currentUser)) {
+        return res.status(403).json({ ok: false, message: "Accesso riservato allo staff." });
       }
       next();
     });
   }
 
-  // Restituisce gli userId admin (per consegnare eventi privati)
-  function adminUserIds() {
-    return authDb.db.prepare("SELECT id FROM users WHERE is_admin = 1").all().map(function (r) { return r.id; });
+  function requireStaffCapability(capability) {
+    return function (req, res, next) {
+      requireAuth(req, res, function () {
+        if (!hasStaffCapability(req.currentUser, capability)) {
+          return res.status(403).json({ ok: false, message: "Il tuo grado staff non ha accesso a questa area." });
+        }
+        next();
+      });
+    };
   }
 
-  function firstAdminId(preferredId) {
-    const ids = adminUserIds();
+  // Restituisce gli userId staff (per consegnare eventi privati)
+  function adminUserIds() {
+    return authDb.db.prepare("SELECT id FROM users WHERE is_admin = 1 OR staff_role IN ('support','manager','ceo')").all().map(function (r) { return r.id; });
+  }
+
+  function staffUserIdsFor(capability) {
+    return authDb.db.prepare("SELECT id, is_admin, staff_role FROM users WHERE is_admin = 1 OR staff_role IN ('support','manager','ceo')").all()
+      .filter(function (u) { return hasStaffCapability(u, capability); })
+      .map(function (r) { return r.id; });
+  }
+
+  function firstSupportId(preferredId) {
+    const ids = staffUserIdsFor("support");
     if (preferredId && ids.indexOf(preferredId) !== -1) return preferredId;
-    return ids.length ? ids[0] : null;
+    return ids.length ? ids[0] : (adminUserIds()[0] || null);
   }
 
   app.get("/api/content", function (req, res) {
     res.json({ ok: true, content: adminOps.getContent(authDb) });
   });
 
-  app.put("/api/content", requireCsrf, requireAdmin, function (req, res) {
+  app.put("/api/content", requireCsrf, requireStaffCapability("content"), function (req, res) {
     const body = req.body;
     if (!body || typeof body !== "object" || !body.content || typeof body.content !== "object") {
       return res.status(400).json({ ok: false, message: "Payload contenuto non valido." });
@@ -649,7 +710,7 @@ function createApp(overrides = {}) {
     res.json({ ok: true, status: adminOps.getStatus(authDb) });
   });
 
-  app.put("/api/status", requireCsrf, requireAdmin, function (req, res) {
+  app.put("/api/status", requireCsrf, requireStaffCapability("status"), function (req, res) {
     const body = req.body || {};
     const next = adminOps.saveStatus(authDb, body);
     broadcaster.broadcast("status", next);
@@ -663,7 +724,7 @@ function createApp(overrides = {}) {
 
   function broadcastOrder(kind, order) {
     if (!order) return;
-    broadcaster.broadcast("order:" + kind, order, { userIds: adminUserIds().concat([order.userId]) });
+    broadcaster.broadcast("order:" + kind, order, { userIds: staffUserIdsFor("orders").concat([order.userId]) });
   }
 
   function requireOrderAccess(req, res) {
@@ -672,7 +733,7 @@ function createApp(overrides = {}) {
       res.status(404).json({ ok: false, message: "Ordine inesistente." });
       return null;
     }
-    if (!req.currentUser.is_admin && order.userId !== req.currentUser.id) {
+    if (!hasStaffCapability(req.currentUser, "orders") && order.userId !== req.currentUser.id) {
       res.status(403).json({ ok: false, message: "Non puoi vedere questo ordine." });
       return null;
     }
@@ -709,7 +770,7 @@ function createApp(overrides = {}) {
     res.json({ ok: true, orders: orders.listMyOrders(req.currentUser.id) });
   });
 
-  app.get("/api/orders", requireAdmin, function (req, res) {
+  app.get("/api/orders", requireStaffCapability("orders"), function (req, res) {
     res.json({ ok: true, orders: orders.listAllOrders() });
   });
 
@@ -732,7 +793,7 @@ function createApp(overrides = {}) {
     res.json({ ok: true, order: updated });
   });
 
-  app.post("/api/orders/:id/complete", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/orders/:id/complete", requireCsrf, requireStaffCapability("orders"), function (req, res) {
     const order = orders.getOrder(parseInt(req.params.id, 10));
     if (!order) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
     const updated = orders.markCompleted(order.id);
@@ -800,12 +861,12 @@ function createApp(overrides = {}) {
     });
     let chat = null;
     if (autoOpenChat) {
-      const adminId = firstAdminId();
+      const adminId = firstSupportId();
       if (adminId) chat = support.openChatForTicket(ticket.id, adminId);
     }
     const finalTicket = chat ? support.getTicket(ticket.id) : ticket;
-    const audience = adminUserIds().concat([req.currentUser.id]);
-    broadcaster.broadcast("ticket:new", finalTicket, { userIds: adminUserIds() });
+    const audience = staffUserIdsFor("support").concat([req.currentUser.id]);
+    broadcaster.broadcast("ticket:new", finalTicket, { userIds: staffUserIdsFor("support") });
     broadcaster.broadcast("ticket:mine", finalTicket, { userIds: [req.currentUser.id] });
     if (chat) {
       broadcaster.broadcast("ticket:update", finalTicket, { userIds: audience });
@@ -818,48 +879,48 @@ function createApp(overrides = {}) {
     res.json({ ok: true, tickets: support.listMyTickets(req.currentUser.id) });
   });
 
-  app.get("/api/tickets", requireAdmin, function (req, res) {
+  app.get("/api/tickets", requireStaffCapability("support"), function (req, res) {
     res.json({ ok: true, tickets: support.listAllTickets() });
   });
 
   app.get("/api/tickets/:id", requireAuth, function (req, res) {
     const ticket = support.getTicket(parseInt(req.params.id, 10));
     if (!ticket) return res.status(404).json({ ok: false, message: "Ticket inesistente." });
-    if (!req.currentUser.is_admin && ticket.userId !== req.currentUser.id) {
+    if (!hasStaffCapability(req.currentUser, "support") && ticket.userId !== req.currentUser.id) {
       return res.status(403).json({ ok: false, message: "Non puoi vedere questo ticket." });
     }
     res.json({ ok: true, ticket });
   });
 
-  app.post("/api/tickets/:id/decline", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/tickets/:id/decline", requireCsrf, requireStaffCapability("support"), function (req, res) {
     const ticket = support.setTicketStatus(parseInt(req.params.id, 10), "declined");
     if (!ticket) return res.status(404).json({ ok: false, message: "Ticket inesistente." });
-    broadcaster.broadcast("ticket:update", ticket, { userIds: adminUserIds().concat([ticket.userId]) });
+    broadcaster.broadcast("ticket:update", ticket, { userIds: staffUserIdsFor("support").concat([ticket.userId]) });
     res.json({ ok: true, ticket });
   });
 
-  app.post("/api/tickets/:id/approve", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/tickets/:id/approve", requireCsrf, requireStaffCapability("support"), function (req, res) {
     const ticket = support.setTicketStatus(parseInt(req.params.id, 10), "approved");
     if (!ticket) return res.status(404).json({ ok: false, message: "Ticket inesistente." });
-    broadcaster.broadcast("ticket:update", ticket, { userIds: adminUserIds().concat([ticket.userId]) });
+    broadcaster.broadcast("ticket:update", ticket, { userIds: staffUserIdsFor("support").concat([ticket.userId]) });
     res.json({ ok: true, ticket });
   });
 
-  app.post("/api/tickets/:id/reply", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/tickets/:id/reply", requireCsrf, requireStaffCapability("support"), function (req, res) {
     const reply = req.body && typeof req.body.reply === "string" ? req.body.reply.trim() : "";
     if (!reply) return res.status(400).json({ ok: false, message: "Risposta vuota." });
     if (reply.length > 10000) return res.status(400).json({ ok: false, message: "Risposta troppo lunga." });
     const ticket = support.replyToTicket(parseInt(req.params.id, 10), reply);
     if (!ticket) return res.status(404).json({ ok: false, message: "Ticket inesistente." });
-    broadcaster.broadcast("ticket:update", ticket, { userIds: adminUserIds().concat([ticket.userId]) });
+    broadcaster.broadcast("ticket:update", ticket, { userIds: staffUserIdsFor("support").concat([ticket.userId]) });
     res.json({ ok: true, ticket });
   });
 
-  app.post("/api/tickets/:id/open-chat", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/tickets/:id/open-chat", requireCsrf, requireStaffCapability("support"), function (req, res) {
     try {
       const chat = support.openChatForTicket(parseInt(req.params.id, 10), req.currentUser.id);
       const ticket = support.getTicket(chat.ticketId);
-      const audience = adminUserIds().concat([chat.userId]);
+      const audience = staffUserIdsFor("support").concat([chat.userId]);
       broadcaster.broadcast("ticket:update", ticket, { userIds: audience });
       broadcaster.broadcast("chat:open", chat, { userIds: audience });
       res.json({ ok: true, chat, ticket });
@@ -872,7 +933,7 @@ function createApp(overrides = {}) {
   function loadChatOr403(req, res) {
     const chat = support.getChat(parseInt(req.params.id, 10));
     if (!chat) { res.status(404).json({ ok: false, message: "Chat inesistente." }); return null; }
-    if (!req.currentUser.is_admin && chat.userId !== req.currentUser.id) {
+    if (!hasStaffCapability(req.currentUser, "support") && chat.userId !== req.currentUser.id) {
       res.status(403).json({ ok: false, message: "Non hai accesso a questa chat." });
       return null;
     }
@@ -883,7 +944,7 @@ function createApp(overrides = {}) {
     res.json({ ok: true, chats: support.listChatsByUser(req.currentUser.id) });
   });
 
-  app.get("/api/chats", requireAdmin, function (req, res) {
+  app.get("/api/chats", requireStaffCapability("support"), function (req, res) {
     res.json({ ok: true, chats: support.listAllChats() });
   });
 
@@ -898,7 +959,7 @@ function createApp(overrides = {}) {
     if (!chat) return;
     if (chat.status === "closed") return res.status(400).json({ ok: false, message: "Chat chiusa." });
     if (chat.status === "suspended") return res.status(400).json({ ok: false, message: "Chat sospesa." });
-    const senderRole = req.currentUser.is_admin ? "admin" : "user";
+    const senderRole = hasStaffCapability(req.currentUser, "support") ? "admin" : "user";
     if (senderRole === "user") {
       if (chat.status === "paused") return res.status(400).json({ ok: false, message: "Chat in attesa." });
       if (!chat.userCanSend) return res.status(403).json({ ok: false, message: "L'admin ha disabilitato l'invio." });
@@ -913,7 +974,7 @@ function createApp(overrides = {}) {
       content,
     });
     const updatedChat = support.getChat(chat.id);
-    const audience = adminUserIds().concat([chat.userId]);
+    const audience = staffUserIdsFor("support").concat([chat.userId]);
     broadcaster.broadcast("chat:message", { chatId: chat.id, message: msg }, { userIds: audience });
     if (updatedChat) broadcaster.broadcast("chat:update", updatedChat, { userIds: audience });
     res.status(201).json({ ok: true, message: msg, chat: updatedChat });
@@ -923,7 +984,7 @@ function createApp(overrides = {}) {
     const chat = loadChatOr403(req, res);
     if (!chat) return;
     if (chat.status === "closed" || chat.status === "suspended") return res.json({ ok: true, ignored: true });
-    const senderRole = req.currentUser.is_admin ? "admin" : "user";
+    const senderRole = hasStaffCapability(req.currentUser, "support") ? "admin" : "user";
     const payload = {
       chatId: chat.id,
       userId: req.currentUser.id,
@@ -932,29 +993,29 @@ function createApp(overrides = {}) {
       isTyping: !!(req.body && req.body.isTyping),
       at: new Date().toISOString(),
     };
-    broadcaster.broadcast("chat:typing", payload, { userIds: adminUserIds().concat([chat.userId]) });
+    broadcaster.broadcast("chat:typing", payload, { userIds: staffUserIdsFor("support").concat([chat.userId]) });
     res.json({ ok: true });
   });
 
-  app.post("/api/chats/:id/status", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/chats/:id/status", requireCsrf, requireStaffCapability("support"), function (req, res) {
     const status = req.body && typeof req.body.status === "string" ? req.body.status : "";
     try {
       const chat = support.setChatStatus(parseInt(req.params.id, 10), status);
       if (!chat) return res.status(404).json({ ok: false, message: "Chat inesistente." });
-      broadcaster.broadcast("chat:update", chat, { userIds: adminUserIds().concat([chat.userId]) });
+      broadcaster.broadcast("chat:update", chat, { userIds: staffUserIdsFor("support").concat([chat.userId]) });
       res.json({ ok: true, chat });
     } catch (error) {
       res.status(400).json({ ok: false, message: error.message });
     }
   });
 
-  app.post("/api/chats/:id/close", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/chats/:id/close", requireCsrf, requireStaffCapability("support"), function (req, res) {
     const reason = req.body && typeof req.body.reason === "string" ? req.body.reason : "";
     try {
       const chat = support.closeChat(parseInt(req.params.id, 10), reason);
       if (!chat) return res.status(404).json({ ok: false, message: "Chat inesistente." });
       const ticket = chat.ticketId ? support.getTicket(chat.ticketId) : null;
-      const audience = adminUserIds().concat([chat.userId]);
+      const audience = staffUserIdsFor("support").concat([chat.userId]);
       broadcaster.broadcast("chat:update", chat, { userIds: audience });
       if (ticket) broadcaster.broadcast("ticket:update", ticket, { userIds: audience });
       res.json({ ok: true, chat, ticket });
@@ -963,15 +1024,15 @@ function createApp(overrides = {}) {
     }
   });
 
-  app.post("/api/chats/:id/permissions", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/chats/:id/permissions", requireCsrf, requireStaffCapability("support"), function (req, res) {
     const userCanSend = !!(req.body && req.body.userCanSend);
     const chat = support.setChatPermissions(parseInt(req.params.id, 10), userCanSend);
     if (!chat) return res.status(404).json({ ok: false, message: "Chat inesistente." });
-    broadcaster.broadcast("chat:update", chat, { userIds: adminUserIds().concat([chat.userId]) });
+    broadcaster.broadcast("chat:update", chat, { userIds: staffUserIdsFor("support").concat([chat.userId]) });
     res.json({ ok: true, chat });
   });
 
-  app.post("/api/admin/moderation/users/:id", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/admin/moderation/users/:id", requireCsrf, requireStaffCapability("moderation"), function (req, res) {
     const targetId = parseInt(req.params.id, 10);
     const action = req.body && typeof req.body.action === "string" ? req.body.action : "";
     const reason = req.body && typeof req.body.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
@@ -1022,7 +1083,7 @@ function createApp(overrides = {}) {
     }
   });
 
-  app.post("/api/admin/moderation/ip", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/admin/moderation/ip", requireCsrf, requireStaffCapability("moderation"), function (req, res) {
     const ip = normalizeIp(req.body && req.body.ip);
     const action = req.body && typeof req.body.action === "string" ? req.body.action : "";
     const reason = req.body && typeof req.body.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
@@ -1049,7 +1110,7 @@ function createApp(overrides = {}) {
 
 
 
-  app.post("/api/admin/moderation/unban-all", requireCsrf, requireAdmin, function (req, res) {
+  app.post("/api/admin/moderation/unban-all", requireCsrf, requireStaffCapability("moderation"), function (req, res) {
     const now = authDb.nowIso();
     const tx = authDb.db.transaction(function () {
       const users = authDb.db.prepare("UPDATE users SET account_status = 'active', account_status_reason = NULL, account_status_updated_at = @now, account_status_updated_by = @admin, updated_at = @now WHERE COALESCE(account_status, 'active') IN ('suspended', 'banned')").run({ now, admin: req.currentUser.id });
@@ -1066,13 +1127,13 @@ function createApp(overrides = {}) {
     res.json({ ok: true, result });
   });
 
-  app.get("/api/admin/moderation/ip-bans", requireAdmin, function (req, res) {
+  app.get("/api/admin/moderation/ip-bans", requireStaffCapability("moderation"), function (req, res) {
     res.json({ ok: true, bans: authDb.listActiveIpBans ? authDb.listActiveIpBans() : [] });
   });
 
-  app.get("/api/admin/users", requireAdmin, function (req, res) {
+  app.get("/api/admin/users", requireStaffCapability("users"), function (req, res) {
     const users = authDb.db.prepare(`
-      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin,
+      SELECT id, username, email, marketing_opt_in, email_verified_at, is_admin, staff_role,
         account_status, account_status_reason, account_status_updated_at, account_status_updated_by,
         register_ip, last_ip, last_seen_at, created_at, updated_at
       FROM users
@@ -1081,10 +1142,12 @@ function createApp(overrides = {}) {
     res.json({ ok: true, users });
   });
 
-  app.post("/api/admin/users/admin", requireCsrf, requireAdmin, async function (req, res, next) {
+  app.post("/api/admin/users/admin", requireCsrf, requireStaffCapability("staffManage"), async function (req, res, next) {
     const username = req.body && typeof req.body.username === "string" ? req.body.username.trim() : "";
     const email = req.body && typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
     const password = req.body && typeof req.body.password === "string" ? req.body.password : "";
+    const staffRole = normalizeStaffRole(req.body && req.body.staffRole);
+    if (staffRole === "user") return res.status(400).json({ ok: false, message: "Seleziona un grado staff valido." });
     if (username.length < 2 || username.length > 40) return res.status(400).json({ ok: false, message: "Nome utente admin non valido." });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, message: "Email admin non valida." });
     if (password.length < 8 || password.length > 72) return res.status(400).json({ ok: false, message: "La password admin deve avere tra 8 e 72 caratteri." });
@@ -1092,7 +1155,8 @@ function createApp(overrides = {}) {
       if (authDb.findUserByEmail(email)) return res.status(409).json({ ok: false, message: "Esiste già un account con questa email." });
       const passwordHash = await bcrypt.hash(password, config.bcryptRounds);
       const user = authDb.createUser({ username, email, passwordHash, marketingOptIn: false });
-      authDb.setUserAdmin(user.id, true);
+      if (authDb.setUserStaffRole) authDb.setUserStaffRole(user.id, staffRole);
+      else authDb.setUserAdmin(user.id, true);
       authDb.db.prepare("UPDATE users SET email_verified_at = @now, updated_at = @now WHERE id = @id").run({ id: user.id, now: authDb.nowIso() });
       const created = serializeUser(authDb.findUserById(user.id));
       broadcaster.broadcast("users:update", { user: created }, { userIds: adminUserIds() });
@@ -1100,6 +1164,24 @@ function createApp(overrides = {}) {
     } catch (error) {
       return next(error);
     }
+  });
+
+
+
+  app.post("/api/admin/users/:id/staff-role", requireCsrf, requireStaffCapability("staffManage"), function (req, res) {
+    const targetId = parseInt(req.params.id, 10);
+    const staffRole = normalizeStaffRole(req.body && req.body.staffRole);
+    if (!targetId) return res.status(400).json({ ok: false, message: "Utente non valido." });
+    if (targetId === req.currentUser.id && staffRole !== "ceo") {
+      return res.status(400).json({ ok: false, message: "Non puoi toglierti il grado CEO dal tuo stesso account." });
+    }
+    const target = authDb.findUserById(targetId);
+    if (!target) return res.status(404).json({ ok: false, message: "Utente inesistente." });
+    if (!authDb.setUserStaffRole) return res.status(500).json({ ok: false, message: "Funzione gradi staff non disponibile." });
+    const updated = serializeUser(authDb.setUserStaffRole(targetId, staffRole));
+    broadcaster.broadcast("users:update", { user: updated }, { userIds: adminUserIds() });
+    broadcastAdminPresence();
+    res.json({ ok: true, user: updated });
   });
 
   app.get("/verify-email", function (req, res) {
@@ -1123,7 +1205,7 @@ function createApp(overrides = {}) {
 
   app.get("/", function (req, res) {
     const accountBlock = blockInfoFromUser(req.sessionUser);
-    const ipBlock = req.ipBan && !(req.sessionUser && req.sessionUser.is_admin) ? blockInfoFromIpBan(req.ipBan) : null;
+    const ipBlock = req.ipBan && !(req.sessionUser && isStaffUser(req.sessionUser)) ? blockInfoFromIpBan(req.ipBan) : null;
     const block = accountBlock || ipBlock;
     if (block) return sendBlockedHtml(res, block);
     res.sendFile(path.join(config.rootDir, "index.html"));

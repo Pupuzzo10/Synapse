@@ -150,6 +150,8 @@
 (function () {
   var categoryMap = {
     bot: "bot",
+    "emoji-pack": "emoji-pack",
+    emoji: "emoji-pack",
     hosting: "hosting",
     codice: "codice",
     code: "codice",
