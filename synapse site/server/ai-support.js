@@ -31,7 +31,7 @@ function buildSiteContext(content, status) {
   status = status || {};
   const lines = [];
   lines.push("Nome progetto: Synapse.");
-  lines.push("Synapse vende e presenta servizi digitali: bot Discord, hosting, loghi, accesso al codice sorgente, siti web professionali, servizi custom e supporto tramite ticket/chat.");
+  lines.push("Synapse vende e presenta servizi digitali: bot Discord, script FiveM, script Roblox, hosting, loghi, accesso al codice sorgente, siti web professionali, servizi custom e supporto tramite ticket/chat.");
   lines.push("Regola rimborsi: dopo conferma/inizio lavorazione non è previsto rimborso automatico; viene offerta assistenza continuativa per avvicinare il prodotto alla richiesta iniziale.");
   lines.push("Metodo pagamento disponibile: esclusivamente Revolut tramite checkout Synapse e link ufficiale https://revolut.me/angelo2tqp. Synapse non acquisisce dati carta.");
   if (status.server || status.service || status.message) {
@@ -42,6 +42,12 @@ function buildSiteContext(content, status) {
   }).forEach(function (x) { lines.push(x); });
   compactList(content.hosting && content.hosting.rows, function (r) {
     return "Hosting - " + (r.duration || "durata") + ": " + (r.price || "prezzo n/d") + "; " + (r.note || "");
+  }).forEach(function (x) { lines.push(x); });
+  compactList(content.fivemScripts && content.fivemScripts.plans, function (p) {
+    return "Script FiveM - " + (p.name || "Piano") + ": " + (p.price || "prezzo n/d") + "; " + compactList(p.features, function (f) { return f && f.text; }).join(", ");
+  }).forEach(function (x) { lines.push(x); });
+  compactList(content.robloxScripts && content.robloxScripts.plans, function (p) {
+    return "Script Roblox - " + (p.name || "Piano") + ": " + (p.price || "prezzo n/d") + "; " + compactList(p.features, function (f) { return f && f.text; }).join(", ");
   }).forEach(function (x) { lines.push(x); });
   compactList(content.code && content.code.plans, function (p) {
     return "Codice sorgente - " + (p.name || "Piano") + ": " + (p.price || "prezzo n/d") + "€; " + compactList(p.features, function (f) { return f && f.text; }).join(", ");

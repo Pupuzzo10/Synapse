@@ -38,6 +38,8 @@
     about: "content",
     bot: "content",
     hosting: "content",
+    fivemScripts: "content",
+    robloxScripts: "content",
     code: "content",
     logos: "content",
     websites: "content",
@@ -316,6 +318,70 @@
     box.appendChild(rowsBox);
     return box;
   }
+
+
+function scriptProductsTab(key, labelSingular) {
+  var s = workingContent[key] = workingContent[key] || { plans: [], extras: [] };
+  s.plans = s.plans || [];
+  s.extras = s.extras || [];
+  var box = el("div");
+  box.appendChild(field("Titolo sezione", textInput(s.title, function (v) { s.title = v; })));
+  box.appendChild(field("Intro sezione", textarea(s.intro, function (v) { s.intro = v; })));
+  s.plans.forEach(function (plan, idx) {
+    plan.features = plan.features || [];
+    var card = el("div", { class: "admin-card-wrap" });
+    card.appendChild(el("h4", { text: labelSingular + " " + (idx + 1) }));
+    card.appendChild(field("Nome", textInput(plan.name, function (v) { plan.name = v; })));
+    card.appendChild(field("Prezzo", textInput(plan.price, function (v) { plan.price = v; })));
+    card.appendChild(field("Badge", textInput(plan.badge, function (v) { plan.badge = v; })));
+    card.appendChild(field("Frase breve", textInput(plan.tagline, function (v) { plan.tagline = v; })));
+    card.appendChild(field('Box "consigliato per"', textarea(plan.recommendedFor, function (v) { plan.recommendedFor = v; })));
+    card.appendChild(field("In evidenza", checkbox(plan.featured, function (v) { plan.featured = v; })));
+    var feats = el("div", { class: "admin-sublist" });
+    feats.appendChild(el("h5", { text: "Cosa include" }));
+    plan.features.forEach(function (f, i) {
+      var row = el("div", { class: "admin-row" });
+      row.appendChild(textInput((typeof f === "string" ? f : f.text), function (v) { plan.features[i] = { text: v }; }));
+      row.appendChild(el("button", { type: "button", class: "admin-btn-remove", text: "×", onclick: function () { plan.features.splice(i, 1); renderActiveTab(); } }));
+      feats.appendChild(row);
+    });
+    feats.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ voce", onclick: function () { plan.features.push({ text: "Nuova voce" }); renderActiveTab(); } }));
+    card.appendChild(feats);
+    card.appendChild(el("button", { type: "button", class: "admin-btn-remove-card", text: "Rimuovi piano", onclick: function () { s.plans.splice(idx, 1); renderActiveTab(); } }));
+    box.appendChild(card);
+  });
+  box.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ aggiungi piano", onclick: function () {
+    s.plans.push({ name: "Nuovo piano", price: "0,00€", badge: "", featured: false, tagline: "", recommendedFor: "", features: [{ text: "Voce inclusa" }] });
+    renderActiveTab();
+  } }));
+
+  var extrasBox = el("div", { class: "admin-sublist" });
+  extrasBox.appendChild(el("h4", { text: "Extra" }));
+  extrasBox.appendChild(field("Titolo extra", textInput(s.extrasTitle, function (v) { s.extrasTitle = v; })));
+  s.extras.forEach(function (r, i) {
+    var row = el("div", { class: "admin-row" });
+    row.appendChild(textInput(r.name, function (v) { r.name = v; }));
+    row.appendChild(textInput(r.price, function (v) { r.price = v; }));
+    row.appendChild(textInput(r.note, function (v) { r.note = v; }));
+    row.appendChild(el("button", { type: "button", class: "admin-btn-remove", text: "×", onclick: function () { s.extras.splice(i, 1); renderActiveTab(); } }));
+    extrasBox.appendChild(row);
+  });
+  extrasBox.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ extra", onclick: function () { s.extras.push({ name: "Nuovo extra", price: "", note: "" }); renderActiveTab(); } }));
+  box.appendChild(extrasBox);
+
+  box.appendChild(field("Titolo box testo", textInput(s.copyTitle, function (v) { s.copyTitle = v; })));
+  box.appendChild(field("Testo pronto", textarea(s.copyBody, function (v) { s.copyBody = v; })));
+  box.appendChild(field("Footer box", textInput(s.copyFooter, function (v) { s.copyFooter = v; })));
+  return box;
+}
+
+function tab_fivemScripts() {
+  return scriptProductsTab("fivemScripts", "Piano FiveM");
+}
+
+function tab_robloxScripts() {
+  return scriptProductsTab("robloxScripts", "Piano Roblox");
+}
 
   function tab_code() {
     return plansTab("code", function () { return { name: "Nuovo piano", price: "0,00", badge: "", featured: false, features: [{ text: "Voce", excluded: false }] }; }, true);
@@ -1038,6 +1104,8 @@
     { id: "about", label: "Chi siamo", render: tab_about },
     { id: "bot", label: "Bot + Emoji", render: tab_bot },
     { id: "hosting", label: "Hosting", render: tab_hosting },
+    { id: "fivemScripts", label: "Script FiveM", render: tab_fivemScripts },
+    { id: "robloxScripts", label: "Script Roblox", render: tab_robloxScripts },
     { id: "code", label: "Codice", render: tab_code },
     { id: "logos", label: "Loghi", render: tab_logos },
     { id: "websites", label: "Siti web", render: tab_websites },

@@ -3,18 +3,18 @@
 module.exports = {
   hero: {
     eyebrow: "SynapseBot Hub",
-    title: "Bot Discord, siti web, hosting e identità visiva su misura",
+    title: "Bot Discord, script FiveM/Roblox, siti web, hosting e identità visiva su misura",
     titleHighlight: "su misura",
-    lead: "Il punto di riferimento per bot personalizzati, siti web professionali, hosting affidabile e supporto tecnico per il tuo progetto online.",
+    lead: "Il punto di riferimento per bot personalizzati, script FiveM e Roblox, siti web professionali, hosting affidabile e supporto tecnico per il tuo progetto online.",
     startingPrice: "4,99€",
     ctaPrimary: { label: "Entra su Discord", href: "https://discord.gg/FU9WuQcqeB" },
     ctaSecondary: { label: "Vedi listino prodotti", href: "#listino-prodotti" },
   },
   about: {
     title: "Chi è Synapse",
-    intro: "Synapse unisce sviluppo bot, siti web, hosting e design in un'unica esperienza semplice e intuitiva, con supporto H24 gratuito e progetti costruiti sulle tue esigenze.",
+    intro: "Synapse unisce sviluppo bot, script FiveM/Roblox, siti web, hosting e design in un'unica esperienza semplice e intuitiva, con supporto H24 gratuito e progetti costruiti sulle tue esigenze.",
     features: [
-      { icon: "rocket", text: "Bot dedicati, da Discord ai social" },
+      { icon: "rocket", text: "Bot dedicati e script personalizzati, da Discord a FiveM/Roblox" },
       { icon: "globe", text: "Siti web statici, professionali e avanzati" },
       { icon: "tag", text: "Prezzi chiari, listino ufficiale" },
       { icon: "briefcase", text: "Ogni progetto è realizzato su misura" },
@@ -114,6 +114,169 @@ module.exports = {
       { duration: "1 anno", price: "69,99€", note: "Best deal" },
     ],
   },
+
+fivemScripts: {
+  title: "Script FiveM personalizzati",
+  intro: "Realizziamo script FiveM professionali su misura: da piccoli fix fino a sistemi esclusivi con UI avanzata, ottimizzati per server ESX, QB o framework custom.",
+  plans: [
+    {
+      name: "Script Base",
+      price: "10€–25€",
+      badge: "Entry",
+      featured: false,
+      tagline: "Modifiche rapide, fix e mini-funzioni.",
+      recommendedFor: "Perfetto per: clienti che vogliono una modifica rapida.",
+      features: [
+        { text: "Piccoli comandi" },
+        { text: "Fix veloci" },
+        { text: "Mini-funzioni (notify, log, callback, UI minima)" },
+        { text: "Adattamenti a script già esistenti" },
+        { text: "Durata media: 30–60 minuti" }
+      ],
+    },
+    {
+      name: "Script Standard",
+      price: "30€–70€",
+      badge: "Più scelto",
+      featured: true,
+      tagline: "Logica media, UI leggere e integrazioni DB.",
+      recommendedFor: "Perfetto per: funzioni utili ma non complesse.",
+      features: [
+        { text: "Sistemi con logica media" },
+        { text: "Job semplici" },
+        { text: "Interfacce NUI leggere" },
+        { text: "Integrazione con database" },
+        { text: "Export compatibili con framework (ESX/QB/Custom)" },
+        { text: "Durata media: 1–3 ore" }
+      ],
+    },
+    {
+      name: "Script Complessi",
+      price: "80€–150€",
+      badge: "Pro",
+      featured: false,
+      tagline: "Feature avanzate, economy e sincronizzazioni complete.",
+      recommendedFor: "Perfetto per: server che vogliono feature uniche.",
+      features: [
+        { text: "Job completi con UI avanzata" },
+        { text: "Sistemi con molte dipendenze" },
+        { text: "Inventari custom" },
+        { text: "Sistemi di crafting, farming, economy" },
+        { text: "Sincronizzazioni server-client complesse" },
+        { text: "Durata media: 4–8 ore" }
+      ],
+    },
+    {
+      name: "Script Premium / Su Misura",
+      price: "150€–400€+",
+      badge: "Premium",
+      featured: false,
+      tagline: "Soluzioni esclusive ad alte prestazioni.",
+      recommendedFor: "Perfetto per: progetti seri che vogliono qualcosa di unico e non rivendibile.",
+      features: [
+        { text: "Sistemi esclusivi" },
+        { text: "Framework personalizzati" },
+        { text: "UI full custom stile GTA Online" },
+        { text: "Sistemi di polizia, ospedale, gang, housing avanzati" },
+        { text: "Ottimizzazione FPS + performance tuning" },
+        { text: "Durata media: 1–3 giorni" }
+      ],
+    },
+  ],
+  extrasTitle: "Extra disponibili",
+  extras: [
+    { name: "Installazione sul server", price: "+10€ / 20€", note: "Configurazione e avvio direttamente sul tuo server." },
+    { name: "Ottimizzazione performance", price: "+20€ / 50€", note: "Riduzione consumi e miglioramento fluidità." },
+    { name: "Supporto 7 giorni", price: "+15€", note: "Assistenza dedicata post-consegna." },
+    { name: "Esclusività", price: "+50% / +100%", note: "Script venduto solo a te, non rivendibile ad altri." },
+  ],
+  copyTitle: "Testo pronto da mettere sul sito",
+  copyBody: "Realizzo script FiveM personalizzati di qualsiasi livello. Il prezzo varia in base alla complessità del progetto: Script base 10€–25€, script standard 30€–70€, script complessi 80€–150€, script premium su misura 150€–400€+. Possibilità di installazione, ottimizzazione e supporto dedicato.",
+  copyFooter: "Ogni script può essere reso esclusivo su richiesta.",
+},
+robloxScripts: {
+  title: "Script Roblox personalizzati",
+  intro: "Realizziamo script Roblox professionali in Lua, ottimizzati e sicuri: da funzioni rapide fino a simulator complessi, UI complete e sistemi multiplayer scalabili.",
+  plans: [
+    {
+      name: "Script Base",
+      price: "10€–25€",
+      badge: "Entry",
+      featured: false,
+      tagline: "Piccole funzioni, fix rapidi e interazioni semplici.",
+      recommendedFor: "Target: chi vuole una funzione veloce e pulita.",
+      features: [
+        { text: "Piccole funzioni in Lua" },
+        { text: "Fix rapidi" },
+        { text: "Trigger, prompt, interazioni semplici" },
+        { text: "Mini-sistemi senza UI" },
+        { text: "Adattamenti a script già esistenti" },
+        { text: "Durata media: 20–40 minuti" }
+      ],
+    },
+    {
+      name: "Script Standard",
+      price: "30€–70€",
+      badge: "Più scelto",
+      featured: true,
+      tagline: "Feature utili per giochi piccoli e medi.",
+      recommendedFor: "Target: giochi piccoli/medi che vogliono feature utili.",
+      features: [
+        { text: "Sistemi con logica media" },
+        { text: "Shop, inventory base, quest semplici" },
+        { text: "UI leggera (ScreenGui, Frame, pulsanti)" },
+        { text: "Datastore semplice (salvataggio dati)" },
+        { text: "Animazioni base" },
+        { text: "Durata media: 1–3 ore" }
+      ],
+    },
+    {
+      name: "Script Complessi",
+      price: "80€–150€",
+      badge: "Pro",
+      featured: false,
+      tagline: "Sistemi solidi, multiplayer e anti-exploit.",
+      recommendedFor: "Target: progetti seri che vogliono sistemi solidi e scalabili.",
+      features: [
+        { text: "Sistemi completi (combat system, crafting, skill tree)" },
+        { text: "Datastore avanzato" },
+        { text: "UI complessa con animazioni" },
+        { text: "Sistemi multiplayer sincronizzati" },
+        { text: "Anti-exploit personalizzato" },
+        { text: "NPC con pathfinding e AI base" },
+        { text: "Durata media: 4–8 ore" }
+      ],
+    },
+    {
+      name: "Script Premium / Su Misura",
+      price: "150€–400€+",
+      badge: "Premium",
+      featured: false,
+      tagline: "Soluzioni professionali per giochi da pubblicare seriamente.",
+      recommendedFor: "Target: progetti professionali o giochi da pubblicare seriamente.",
+      features: [
+        { text: "Simulator completi (Pet Simulator-style, Tycoon, ecc.)" },
+        { text: "Sistemi economici complessi" },
+        { text: "AI avanzata" },
+        { text: "UI professionale stile giochi top Roblox" },
+        { text: "Sistemi modulari e ottimizzati" },
+        { text: "Script esclusivi non rivendibili" },
+        { text: "Durata media: 1–3 giorni" }
+      ],
+    },
+  ],
+  extrasTitle: "Extra disponibili",
+  extras: [
+    { name: "UI Design completo", price: "+20€ / 80€", note: "Interfacce curate e coerenti con il tuo gioco." },
+    { name: "Ottimizzazione performance", price: "+20€ / 50€", note: "Ottimizzazione di performance e fluidità." },
+    { name: "Anti-exploit avanzato", price: "+15€ / 40€", note: "Protezione extra contro exploit e abusi." },
+    { name: "Supporto 7 giorni", price: "+15€", note: "Assistenza dedicata post-consegna." },
+    { name: "Esclusività totale", price: "+50% / +100%", note: "Script esclusivo, non rivendibile ad altri." },
+  ],
+  copyTitle: "Testo pronto da mettere sul sito",
+  copyBody: "Realizzo script Roblox personalizzati in Lua, ottimizzati e sicuri. Il prezzo varia in base alla complessità del progetto: Script base 10€–25€, script standard 30€–70€, script complessi 80€–150€, script premium su misura 150€–400€+. Possibilità di UI personalizzate, datastore, sistemi multiplayer, anti-exploit e supporto dedicato.",
+  copyFooter: "Ogni script può essere reso esclusivo su richiesta.",
+},
   code: {
     title: "Accesso al codice sorgente",
     plans: [

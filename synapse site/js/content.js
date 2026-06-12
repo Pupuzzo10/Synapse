@@ -112,6 +112,16 @@
     return p;
   }
 
+function productIcon(src, alt, extraClass) {
+  return el("img", {
+    class: "product-icon-badge" + (extraClass ? " " + extraClass : ""),
+    src: src,
+    alt: alt || "",
+    loading: "lazy",
+    decoding: "async"
+  });
+}
+
   function renderSimpleProductCard(opts) {
     opts = opts || {};
     var card = el("article", { class: "card card-plan card-simple-product" + (opts.featured ? " card-featured" : "") });
@@ -362,6 +372,98 @@
     }
   }
 
+
+function renderScriptCard(plan, categoryLabel, iconSrc, iconAlt, extraIconClass) {
+  plan = plan || {};
+  var card = el("article", { class: "card card-website card-script-product" + (plan.featured ? " card-featured" : "") });
+  renderBadge(card, plan.featured && !plan.badge ? Object.assign({}, plan, { badge: "Consigliato" }) : plan);
+  card.appendChild(productIcon(iconSrc, iconAlt, extraIconClass));
+  card.appendChild(el("h3", { text: plan.name || "" }));
+  if (plan.tagline) card.appendChild(el("p", { class: "card-tagline", text: plan.tagline }));
+  card.appendChild(priceElement(plan.price || ""));
+  if (plan.recommendedFor) {
+    card.appendChild(el("p", { class: "recommended-strip", text: plan.recommendedFor }));
+  }
+  var ul = el("ul", { class: "bullet-list" });
+  (plan.features || []).forEach(function (f) {
+    ul.appendChild(el("li", { text: (typeof f === "string" ? f : (f && f.text) || "") }));
+  });
+  card.appendChild(ul);
+  card.appendChild(ticketButton(categoryLabel || "Script personalizzato", plan.name || "Script", plan.price || ""));
+  return card;
+}
+
+function renderScriptSection(data, cfg) {
+  data = data || {};
+  cfg = cfg || {};
+  var title = document.getElementById(cfg.titleId);
+  var intro = document.getElementById(cfg.introId);
+  var cards = document.getElementById(cfg.cardsId);
+  var extrasTitle = document.getElementById(cfg.extrasTitleId);
+  var extrasBody = document.getElementById(cfg.extrasBodyId);
+  var copyTitle = document.getElementById(cfg.copyTitleId);
+  var copyBody = document.getElementById(cfg.copyBodyId);
+  var copyFooter = document.getElementById(cfg.copyFooterId);
+  if (title) title.textContent = data.title || "";
+  if (intro) intro.textContent = data.intro || "";
+  if (cards) {
+    clear(cards);
+    (data.plans || []).forEach(function (plan) {
+      cards.appendChild(renderScriptCard(plan, cfg.categoryLabel, cfg.iconSrc, cfg.iconAlt, cfg.iconClass));
+    });
+  }
+  if (extrasTitle) extrasTitle.textContent = data.extrasTitle || "Extra disponibili";
+  if (extrasBody) {
+    clear(extrasBody);
+    (data.extras || []).forEach(function (r) {
+      var tr = el("tr");
+      tr.appendChild(el("td", { text: r.name || "" }));
+      tr.appendChild(el("td", { text: r.price || "" }));
+      tr.appendChild(el("td", { text: r.note || "" }));
+      tr.appendChild(el("td", {}, ticketButton(cfg.extraCategoryLabel || (cfg.categoryLabel + " extra"), r.name || "Extra", String(r.price || "").replace("€", ""))));
+      extrasBody.appendChild(tr);
+    });
+  }
+  if (copyTitle) copyTitle.textContent = data.copyTitle || "Testo pronto da mettere sul sito";
+  if (copyBody) copyBody.textContent = data.copyBody || "";
+  if (copyFooter) copyFooter.textContent = data.copyFooter || "";
+}
+
+function renderFiveM(f) {
+  renderScriptSection(f, {
+    titleId: "fivem-title",
+    introId: "fivem-intro",
+    cardsId: "fivem-cards",
+    extrasTitleId: "fivem-extras-title",
+    extrasBodyId: "fivem-extras-tbody",
+    copyTitleId: "fivem-copy-title",
+    copyBodyId: "fivem-copy-body",
+    copyFooterId: "fivem-copy-footer",
+    categoryLabel: "Script FiveM",
+    extraCategoryLabel: "Extra Script FiveM",
+    iconSrc: "assets/fivem-icon.png",
+    iconAlt: "Icona FiveM"
+  });
+}
+
+function renderRoblox(r) {
+  renderScriptSection(r, {
+    titleId: "roblox-title",
+    introId: "roblox-intro",
+    cardsId: "roblox-cards",
+    extrasTitleId: "roblox-extras-title",
+    extrasBodyId: "roblox-extras-tbody",
+    copyTitleId: "roblox-copy-title",
+    copyBodyId: "roblox-copy-body",
+    copyFooterId: "roblox-copy-footer",
+    categoryLabel: "Script Roblox",
+    extraCategoryLabel: "Extra Script Roblox",
+    iconSrc: "assets/roblox-icon.png",
+    iconAlt: "Icona Roblox",
+    iconClass: "product-icon-badge--roblox"
+  });
+}
+
   function renderCustomServices(c) {
     c = c || {};
     var section = document.getElementById("custom-services");
@@ -483,6 +585,8 @@
     if (content.about) renderAbout(content.about);
     if (content.bot) renderBot(content.bot);
     if (content.hosting) renderHosting(content.hosting);
+    if (content.fivemScripts) renderFiveM(content.fivemScripts);
+    if (content.robloxScripts) renderRoblox(content.robloxScripts);
     if (content.code) renderCode(content.code);
     if (content.notes) renderNotes(content.notes);
     if (content.logos) renderLogos(content.logos);

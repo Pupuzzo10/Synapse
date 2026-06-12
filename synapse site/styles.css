@@ -1558,7 +1558,8 @@ main {
 
 /* === Addizioni Synapse: siti web, recensioni, servizi dinamici e admin live === */
 .cards-websites,
-.cards-custom-services {
+.cards-custom-services,
+.cards-script-products {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
@@ -1572,6 +1573,29 @@ main {
 .card-tagline {
   color: var(--text-muted);
   margin: 0;
+}
+
+.card-script-product {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.product-icon-badge {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  margin: 0 0 0.25rem;
+  filter: drop-shadow(0 8px 18px rgba(255,255,255,0.08));
+}
+
+.product-icon-badge.product-icon-badge--roblox {
+  width: 74px;
+  height: 74px;
+}
+
+.callout-script-copy p + p {
+  margin-top: 0.6rem;
 }
 
 .custom-service-price {
