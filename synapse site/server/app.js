@@ -713,9 +713,9 @@ function createApp(overrides = {}) {
     }
   });
 
-  app.get("/api/security/reports/:userId", securityLookupLimiter, function (req, res) {
+  app.get("/api/security/reports/:userId", securityLookupLimiter, async function (req, res) {
     try {
-      const result = lookupSecurityReport(config.securityReportsDbPath, req.params.userId);
+      const result = await lookupSecurityReport(config, req.params.userId);
       res.json({
         ok: true,
         found: result.found,

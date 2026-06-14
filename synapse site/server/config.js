@@ -28,6 +28,15 @@ function createConfig(overrides = {}) {
       overrides.databasePath ||
       process.env.DATABASE_PATH ||
       path.join(dataDir, "synapse-auth.db"),
+    databaseUrl:
+      overrides.databaseUrl ||
+      process.env.DATABASE_URL ||
+      "",
+    securityReportsDatabaseUrl:
+      overrides.securityReportsDatabaseUrl ||
+      process.env.SECURITY_DATABASE_URL ||
+      process.env.DATABASE_URL ||
+      "",
     securityReportsDbPath:
       overrides.securityReportsDbPath ||
       process.env.SECURITY_REPORTS_DB_PATH ||
