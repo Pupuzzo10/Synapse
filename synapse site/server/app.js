@@ -15,6 +15,7 @@ const adminOps = require("./admin-ops");
 const { createBroadcaster } = require("./events");
 const { createSupport } = require("./support");
 const { createOrders } = require("./orders");
+const { lookupSecurityReport } = require("./security-reports");
 
 const STAFF_ROLE_LABELS = {
   user: "Utente",
@@ -308,6 +309,12 @@ function createApp(overrides = {}) {
     windowMs: 60 * 1000,
     limit: 45,
     message: "Stai inviando troppi messaggi. Attendi qualche secondo.",
+  });
+
+  const securityLookupLimiter = buildRateLimiter({
+    windowMs: 60 * 1000,
+    limit: 30,
+    message: "Troppe verifiche security. Attendi qualche secondo prima di riprovare.",
   });
 
   const orderLimiter = buildRateLimiter({
@@ -703,6 +710,24 @@ function createApp(overrides = {}) {
       return res.json({ ok: true, content: next });
     } catch (error) {
       return res.status(500).json({ ok: false, message: "Impossibile salvare i contenuti." });
+    }
+  });
+
+  app.get("/api/security/reports/:userId", securityLookupLimiter, function (req, res) {
+    try {
+      const result = lookupSecurityReport(config.securityReportsDbPath, req.params.userId);
+      res.json({
+        ok: true,
+        found: result.found,
+        userId: result.userId || (result.report && result.report.userId) || req.params.userId,
+        report: result.report || null,
+      });
+    } catch (error) {
+      const statusCode = error.statusCode || 500;
+      res.status(statusCode).json({
+        ok: false,
+        message: error.message || "Verifica security non disponibile.",
+      });
     }
   });
 
@@ -1203,12 +1228,24 @@ function createApp(overrides = {}) {
     return res.redirect("/?verified=invalid");
   });
 
-  app.get("/", function (req, res) {
+  function sendPublicPage(req, res, fileName) {
     const accountBlock = blockInfoFromUser(req.sessionUser);
     const ipBlock = req.ipBan && !(req.sessionUser && isStaffUser(req.sessionUser)) ? blockInfoFromIpBan(req.ipBan) : null;
     const block = accountBlock || ipBlock;
     if (block) return sendBlockedHtml(res, block);
-    res.sendFile(path.join(config.rootDir, "index.html"));
+    res.sendFile(path.join(config.rootDir, fileName));
+  }
+
+  app.get("/", function (req, res) {
+    sendPublicPage(req, res, "index.html");
+  });
+
+  app.get("/security", function (req, res) {
+    sendPublicPage(req, res, "security.html");
+  });
+
+  app.get("/security.html", function (req, res) {
+    sendPublicPage(req, res, "security.html");
   });
 
   app.get("/styles.css", function (req, res) {
@@ -1223,6 +1260,7 @@ function createApp(overrides = {}) {
     res.sendFile(path.join(config.rootDir, "brand-cat.png"));
   });
 
+  app.use("/assets", express.static(path.join(config.rootDir, "assets"), { index: false }));
   app.use("/js", express.static(path.join(config.rootDir, "js"), { index: false }));
 
   app.use(function notFound(req, res) {

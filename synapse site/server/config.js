@@ -28,6 +28,10 @@ function createConfig(overrides = {}) {
       overrides.databasePath ||
       process.env.DATABASE_PATH ||
       path.join(dataDir, "synapse-auth.db"),
+    securityReportsDbPath:
+      overrides.securityReportsDbPath ||
+      process.env.SECURITY_REPORTS_DB_PATH ||
+      path.join(dataDir, "segnalazioni.db"),
     sessionSecret,
     sessionCookieName:
       overrides.sessionCookieName || process.env.SESSION_COOKIE_NAME || "synapse.sid",

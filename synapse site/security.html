@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="SynapseHub™ Security — verifica pubblica degli utenti segnalati dal sistema ufficiale SynapseHub." />
+  <title>SynapseHub™ Security — Verifica Utenti</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="security-page-body">
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <header class="site-header security-site-header">
+    <div class="container header-inner">
+      <a class="logo logo--with-cat" href="/" aria-label="Synapse — torna al sito principale">
+        <img class="brand-cat" src="/brand-cat.png" alt="" width="56" height="56" decoding="async" />
+        <span class="logo-wordmark">Synapse</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span class="sr-only">Apri menu</span>
+        <span></span><span></span><span></span>
+      </button>
+      <nav id="site-nav" class="nav">
+        <a href="/">Sito principale</a>
+        <a href="#verifica">Verifica ID</a>
+        <a href="#storia">La nostra storia</a>
+        <a class="nav-cta" href="https://discord.gg/FU9WuQcqeB" target="_blank" rel="noopener noreferrer">Discord</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top" class="security-main">
+    <section class="security-hero">
+      <div class="container security-hero-inner">
+        <div class="security-hero-copy">
+          <p class="eyebrow security-eyebrow">Registro pubblico SynapseHub™</p>
+          <h1>SynapseHub™ Security</h1>
+          <p class="lead security-lead">
+            Un livello di controllo collegato al bot Discord ufficiale per verificare rapidamente se un ID utente risulta presente nel registro delle segnalazioni.
+          </p>
+          <div class="security-hero-actions">
+            <a class="btn btn-primary" href="#verifica">Apri verifica</a>
+            <a class="btn btn-ghost" href="#storia">Scopri il team</a>
+          </div>
+        </div>
+
+        <aside class="security-terminal-card" aria-label="Stato sistema SynapseHub Security">
+          <div class="terminal-topline">
+            <span>synapse.security</span>
+            <span>online</span>
+          </div>
+          <div class="terminal-lines" aria-hidden="true">
+            <span>&gt; inizializzazione registro...</span>
+            <span>&gt; collegamento database bot...</span>
+            <span>&gt; modulo verifica ID pronto</span>
+          </div>
+          <img src="/assets/synapse_security_logo.png" alt="SynapseHub Security" class="security-terminal-logo" />
+        </aside>
+      </div>
+    </section>
+
+    <section id="verifica" class="section security-lookup-section">
+      <div class="container">
+        <div class="security-panel">
+          <div class="section-head security-panel-head">
+            <div>
+              <p class="eyebrow">Controllo segnalazioni</p>
+              <h2>Verifica un utente tramite ID Discord</h2>
+              <p class="section-intro">
+                Inserisci l’ID numerico dell’utente. Il sito interroga il database usato dal bot e restituisce lo stato attuale della segnalazione.
+              </p>
+            </div>
+            <img src="/assets/synapse_security_logo.png" alt="" class="security-panel-mark" loading="lazy" decoding="async" />
+          </div>
+
+          <form id="security-search-form" class="security-search-form" novalidate>
+            <label class="security-search-label" for="security-user-id">
+              <span>ID utente Discord</span>
+              <input
+                id="security-user-id"
+                name="userId"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                maxlength="25"
+                placeholder="Esempio: 999810388168282113"
+                aria-describedby="security-search-help"
+              />
+            </label>
+            <button type="submit" class="btn btn-primary security-search-button">Cerca nel registro</button>
+          </form>
+          <p id="security-search-help" class="muted small security-search-help">
+            Sono accettati solo ID numerici Discord. Le segnalazioni scadute vengono ignorate automaticamente.
+          </p>
+
+          <div id="security-result" class="security-result security-result-empty" aria-live="polite">
+            <div class="security-result-kicker">In attesa di ricerca</div>
+            <h3>Nessun ID verificato</h3>
+            <p>Inserisci un ID utente per consultare il registro SynapseHub™ Security.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="storia" class="section section-alt security-story-section">
+      <div class="container security-story-grid">
+        <div class="security-story-copy">
+          <p class="eyebrow">La nostra storia</p>
+          <h2>Da CoreProtection a SynapseHub™ Security</h2>
+          <p class="section-intro">
+            SynapseHub™ Security nasce da un team di due persone cresciuto nel mondo della protezione delle community Discord. Il progetto ha preso forma partendo dall’esperienza maturata in CoreProtection, dove il focus era aiutare i server a riconoscere comportamenti rischiosi e profili sospetti.
+          </p>
+          <p class="section-intro">
+            Con il passaggio su Synapse, il sistema è diventato più ordinato, più veloce e più vicino alle esigenze reali delle community: segnalazioni tracciate, verifiche tramite ID e un registro consultabile per ridurre i rischi prima che entrino nel server.
+          </p>
+        </div>
+        <div class="security-story-card">
+          <span class="story-step">01</span>
+          <h3>Analisi</h3>
+          <p>Raccogliamo segnalazioni, contesto e prove utili per capire se un profilo rappresenta un rischio concreto.</p>
+          <span class="story-step">02</span>
+          <h3>Verifica</h3>
+          <p>Il database viene mantenuto dal bot e può essere interrogato dal sito tramite ID utente Discord.</p>
+          <span class="story-step">03</span>
+          <h3>Prevenzione</h3>
+          <p>L’obiettivo è aiutare i server Synapse a prevenire plagio, furti di identità e comportamenti dannosi.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="security-banner-section" aria-label="SynapseHub Security">
+      <div class="container">
+        <img src="/assets/synapse_security_banner.png" alt="SynapseHub Security" class="security-wide-banner" loading="lazy" decoding="async" />
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p><strong>SynapseHub™ Security</strong> — Registro di verifica collegato al bot ufficiale</p>
+      <p class="footer-links">
+        <a href="/">Torna al sito principale</a>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <a href="https://discord.gg/FU9WuQcqeB" target="_blank" rel="noopener noreferrer">Discord</a>
+      </p>
+      <p class="footer-copyright">© 2026 Synapse. Tutti i diritti riservati.</p>
+    </div>
+  </footer>
+
+  <script src="/js/security.js" defer></script>
+</body>
+</html>
