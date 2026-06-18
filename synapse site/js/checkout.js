@@ -10,6 +10,7 @@
   var currentUser = null;
   var currentProduct = null;
   var currentOrder = null;
+  var currentDiscount = null;
   var step = "checkout";
   var modal = null;
   var titleEl = null;
@@ -50,6 +51,24 @@
     if (/€|euro/i.test(raw) || /richiesta|confermare|gratis|free/i.test(raw)) return raw;
     if (/^[0-9]+([,.][0-9]{1,2})?$/.test(raw)) return "€" + raw;
     return raw;
+  }
+
+  function encodeQuery(params) {
+    return Object.keys(params || {}).map(function (key) {
+      return encodeURIComponent(key) + "=" + encodeURIComponent(params[key] == null ? "" : params[key]);
+    }).join("&");
+  }
+
+  function activePriceLabel() {
+    if (currentDiscount && currentDiscount.discountedPriceLabel) return currentDiscount.discountedPriceLabel;
+    if (currentOrder && currentOrder.priceLabel) return normalizePrice(currentOrder.priceLabel);
+    return normalizePrice(currentProduct && currentProduct.priceLabel);
+  }
+
+  function productMatchesOrder(order, product) {
+    if (!order || !product) return false;
+    return String(order.productCategory || "").trim().toLowerCase() === String(product.productCategory || "").trim().toLowerCase()
+      && String(order.productName || "").trim().toLowerCase() === String(product.productName || "").trim().toLowerCase();
   }
 
   function setMessage(target, text, type) {
@@ -113,17 +132,72 @@
   }
 
   function productSummary() {
-    return el("div", { class: "checkout-summary" }, [
+    var priceNode;
+    if (currentDiscount) {
+      priceNode = el("span", { class: "checkout-price checkout-price-discounted" }, [
+        el("span", { class: "checkout-discount-label", text: "Sconto -" + currentDiscount.percent + "%" }),
+        el("del", { text: currentDiscount.originalPriceLabel || normalizePrice(currentProduct.priceLabel) }),
+        el("strong", { text: currentDiscount.discountedPriceLabel || activePriceLabel() }),
+      ]);
+    } else {
+      priceNode = el("span", { class: "checkout-price", text: activePriceLabel() });
+    }
+    var summary = el("div", { class: "checkout-summary" }, [
       el("span", { class: "checkout-kicker", text: currentProduct.productCategory || "Prodotto Synapse" }),
       el("strong", { class: "checkout-product-title", text: currentProduct.productName || "Prodotto Synapse" }),
-      el("span", { class: "checkout-price", text: normalizePrice(currentProduct.priceLabel) }),
+      priceNode,
     ]);
+    if (currentDiscount) {
+      summary.appendChild(el("span", { class: "checkout-discount-applied", text: "Codice " + currentDiscount.code + " applicato a questo prodotto" }));
+    }
+    return summary;
   }
 
   function field(label, input, hint) {
     var children = [el("span", { class: "auth-label", text: label }), input];
     if (hint) children.push(el("span", { class: "auth-hint", text: hint }));
     return el("label", { class: "auth-field" }, children);
+  }
+
+  function discountControls(feedback) {
+    var wrap = el("div", { class: "checkout-discount-box" });
+    var row = el("div", { class: "checkout-discount-row" });
+    var input = el("input", { type: "text", class: "checkout-discount-input", maxlength: "80", autocomplete: "off", placeholder: "Inserisci codice sconto" });
+    var applyBtn = el("button", { type: "button", class: "btn btn-warning checkout-discount-btn", text: currentDiscount ? "Codice sconto applicato" : "Applica codice sconto" });
+    if (currentDiscount) {
+      input.value = currentDiscount.code || "";
+      input.disabled = true;
+      applyBtn.disabled = true;
+    }
+    applyBtn.addEventListener("click", function () {
+      var code = input.value.trim();
+      if (!code) { setMessage(feedback, "Inserisci il codice sconto.", "error"); return; }
+      applyBtn.disabled = true;
+      setMessage(feedback, "Verifica codice sconto in corso...", "info");
+      fetchJson("/api/discount-codes/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: code,
+          productCategory: currentProduct.productCategory,
+          productName: currentProduct.productName,
+          priceLabel: normalizePrice(currentProduct.priceLabel),
+          discountCodeId: currentDiscount && currentDiscount.id,
+        }),
+      }).then(function (data) {
+        currentDiscount = data.discount || null;
+        setMessage(feedback, "Codice sconto applicato: -" + currentDiscount.percent + "%.", "success");
+        render();
+      }).catch(function (error) {
+        applyBtn.disabled = false;
+        setMessage(feedback, error.message, "error");
+      });
+    });
+    row.appendChild(input);
+    row.appendChild(applyBtn);
+    wrap.appendChild(row);
+    wrap.appendChild(el("p", { class: "checkout-discount-hint", text: currentDiscount ? "Lo sconto è riservato al tuo account e non può più essere usato da altri." : "Il codice diventa monouso appena viene applicato al tuo account." }));
+    return wrap;
   }
 
   function renderLoginRequired() {
@@ -146,7 +220,7 @@
     var nameInput = el("input", { type: "text", name: "customerName", required: "", autocomplete: "name", maxlength: "120" });
     var phoneInput = el("input", { type: "tel", name: "phone", required: "", autocomplete: "tel", inputmode: "tel", maxlength: "40" });
     var discordInput = el("input", { type: "text", name: "discordUsername", autocomplete: "off", maxlength: "80" });
-    var submit = el("button", { type: "submit", class: "btn btn-primary checkout-wide", text: "Continua al pagamento Revolut" });
+    var submit = el("button", { type: "submit", class: "btn btn-primary checkout-wide", text: "Continua al pagamento su Revolut" });
     if (currentUser && currentUser.username && !nameInput.value) nameInput.value = "";
     form.appendChild(productSummary());
     form.appendChild(el("div", { class: "checkout-payment-card" }, [
@@ -159,6 +233,7 @@
     form.appendChild(field("Numero di telefono", phoneInput, "Obbligatorio e visibile allo staff nell'area ordini."));
     form.appendChild(field("Username Discord", discordInput, "Facoltativo. Verrà usato solo per comunicazioni operative."));
     form.appendChild(el("p", { class: "checkout-note", text: "Dopo l'apertura del pagamento Revolut passerai automaticamente al modulo obbligatorio dei dettagli del servizio." }));
+    form.appendChild(discountControls(feedback));
     form.appendChild(feedback);
     form.appendChild(submit);
     form.addEventListener("submit", function (event) {
@@ -180,6 +255,7 @@
           productCategory: currentProduct.productCategory,
           productName: currentProduct.productName,
           priceLabel: normalizePrice(currentProduct.priceLabel),
+          discountCodeId: currentDiscount && currentDiscount.id,
         }),
       }).then(function (data) {
         currentOrder = data.order;
@@ -223,7 +299,7 @@
     bodyEl.appendChild(el("div", { class: "checkout-payment-card checkout-payment-card-active" }, [
       el("span", { class: "checkout-kicker", text: "Ordine #" + currentOrder.id }),
       el("strong", { text: "Pagamento esclusivamente tramite Revolut" }),
-      el("p", { text: "Importo: " + normalizePrice(currentProduct.priceLabel) + ". Usa solo il link ufficiale mostrato qui sotto. Non vengono richiesti dati carta su questo sito." }),
+      el("p", { text: "Importo: " + activePriceLabel() + ". Usa solo il link ufficiale mostrato qui sotto. Non vengono richiesti dati carta su questo sito." }),
       el("span", { class: "checkout-official-link", text: REVOLUT_PAYMENT_LINK }),
     ]));
     bodyEl.appendChild(el("div", { class: "checkout-payment-flow" }, [
@@ -303,12 +379,51 @@
     else renderCheckout();
   }
 
+  function loadReservedDiscountForCurrentProduct() {
+    if (!currentUser || !currentProduct || currentOrder) return Promise.resolve(null);
+    return fetchJson("/api/discount-codes/reserved?" + encodeQuery({
+      productCategory: currentProduct.productCategory,
+      productName: currentProduct.productName,
+      priceLabel: normalizePrice(currentProduct.priceLabel),
+    }), { method: "GET" }).then(function (data) {
+      currentDiscount = data.discount || null;
+      if (currentDiscount) render();
+      return currentDiscount;
+    }).catch(function () { return null; });
+  }
+
+  function resumeOrderForCurrentProduct() {
+    if (!currentUser || !currentProduct) return Promise.resolve(false);
+    return fetchJson("/api/orders/mine", { method: "GET" }).then(function (data) {
+      var pending = (data.orders || []).find(function (order) {
+        return productMatchesOrder(order, currentProduct)
+          && ["awaiting_payment", "payment_pending_details", "payment_confirmed"].indexOf(order.status) !== -1
+          && !order.serviceDetails;
+      });
+      if (!pending) return false;
+      currentOrder = pending;
+      currentDiscount = null;
+      currentProduct = {
+        productCategory: pending.productCategory,
+        productName: pending.productName,
+        priceLabel: pending.priceLabel,
+      };
+      step = pending.status === "awaiting_payment" ? "payment" : "details";
+      render();
+      return true;
+    }).catch(function () { return false; });
+  }
+
   function openFor(product) {
     currentProduct = Object.assign({ productCategory: "Prodotto Synapse", productName: "Prodotto Synapse", priceLabel: "Da confermare" }, product || {});
     currentProduct.priceLabel = normalizePrice(currentProduct.priceLabel);
     currentOrder = null;
+    currentDiscount = null;
     step = "checkout";
     openModal();
+    resumeOrderForCurrentProduct().then(function (resumed) {
+      if (!resumed) loadReservedDiscountForCurrentProduct();
+    });
   }
 
   function resumeRequiredDetails() {
@@ -319,6 +434,7 @@
       });
       if (!pending || (modal && !modal.hasAttribute("hidden"))) return;
       currentOrder = pending;
+      currentDiscount = null;
       currentProduct = {
         productCategory: pending.productCategory,
         productName: pending.productName,

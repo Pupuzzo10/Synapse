@@ -664,6 +664,7 @@ function renderRoblox(r) {
     relay("ticket:mine", "mine");
     src.addEventListener("order:new", function (ev) { try { document.dispatchEvent(new CustomEvent("synapse:orders-changed", { detail: { order: JSON.parse(ev.data), kind: "new" } })); } catch (_e) {} });
     src.addEventListener("order:update", function (ev) { try { document.dispatchEvent(new CustomEvent("synapse:orders-changed", { detail: { order: JSON.parse(ev.data), kind: "update" } })); } catch (_e) {} });
+    src.addEventListener("discount-codes:update", function (ev) { try { document.dispatchEvent(new CustomEvent("synapse:discount-codes-changed", { detail: JSON.parse(ev.data) })); } catch (_e) {} });
     relay("chat:open", "open");
     relay("chat:message", "message");
     relay("chat:update", "update");

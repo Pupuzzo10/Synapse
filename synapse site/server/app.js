@@ -15,6 +15,7 @@ const adminOps = require("./admin-ops");
 const { createBroadcaster } = require("./events");
 const { createSupport } = require("./support");
 const { createOrders } = require("./orders");
+const { createDiscountCodes } = require("./discount-codes");
 const { lookupSecurityReport } = require("./security-reports");
 
 const STAFF_ROLE_LABELS = {
@@ -27,7 +28,7 @@ const STAFF_ROLE_LABELS = {
 const STAFF_CAPABILITIES = {
   support: ["support"],
   manager: ["orders", "presence", "users"],
-  ceo: ["content", "status", "orders", "support", "presence", "users", "moderation", "staffManage"],
+  ceo: ["content", "status", "orders", "support", "presence", "users", "moderation", "staffManage", "discountCodes"],
 };
 
 function normalizeStaffRole(role) {
@@ -568,6 +569,7 @@ function createApp(overrides = {}) {
   const broadcaster = createBroadcaster();
   const support = createSupport(authDb);
   const orders = createOrders(authDb);
+  const discountCodes = createDiscountCodes(authDb);
 
   app.get("/api/events", function (req, res) {
     const accountBlock = blockInfoFromUser(req.sessionUser);
@@ -742,6 +744,46 @@ function createApp(overrides = {}) {
     res.json({ ok: true, status: next });
   });
 
+  app.get("/api/admin/discount-codes", requireStaffCapability("discountCodes"), function (req, res) {
+    res.json({ ok: true, codes: discountCodes.listDiscountCodes() });
+  });
+
+  app.post("/api/admin/discount-codes", requireCsrf, requireStaffCapability("discountCodes"), function (req, res) {
+    try {
+      const code = discountCodes.createDiscountCode(req.body || {}, req.currentUser);
+      broadcaster.broadcast("discount-codes:update", { code }, { userIds: staffUserIdsFor("discountCodes") });
+      res.status(201).json({ ok: true, code });
+    } catch (error) {
+      res.status(400).json({ ok: false, message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/discount-codes/:id", requireCsrf, requireStaffCapability("discountCodes"), function (req, res) {
+    const code = discountCodes.removeDiscountCode(req.params.id, req.currentUser);
+    if (!code) return res.status(404).json({ ok: false, message: "Codice sconto inesistente." });
+    broadcaster.broadcast("discount-codes:update", { code }, { userIds: staffUserIdsFor("discountCodes") });
+    res.json({ ok: true, code });
+  });
+
+  app.post("/api/discount-codes/apply", orderLimiter, requireCsrf, requireAuth, function (req, res) {
+    try {
+      const discount = discountCodes.reserveDiscountCode(req.body || {}, req.currentUser);
+      broadcaster.broadcast("discount-codes:update", { codeId: discount.id }, { userIds: staffUserIdsFor("discountCodes") });
+      res.json({ ok: true, discount });
+    } catch (error) {
+      res.status(400).json({ ok: false, message: error.message });
+    }
+  });
+
+  app.get("/api/discount-codes/reserved", requireAuth, function (req, res) {
+    const discount = discountCodes.reservedDiscountForProduct({
+      productCategory: req.query.productCategory,
+      productName: req.query.productName,
+      priceLabel: req.query.priceLabel,
+    }, req.currentUser);
+    res.json({ ok: true, discount });
+  });
+
   function normalizeCheckoutText(value, fallback, max) {
     const text = typeof value === "string" ? value.trim() : "";
     return (text || fallback || "").slice(0, max || 160);
@@ -774,6 +816,20 @@ function createApp(overrides = {}) {
     const priceLabel = normalizeCheckoutText(req.body && req.body.priceLabel, "Da confermare", 60);
     if (!/^\S+\s+\S+/.test(customerName)) return res.status(400).json({ ok: false, message: "Inserisci nome e cognome." });
     if (!phone || !/^[+()0-9\s.-]{6,40}$/.test(phone) || phone.replace(/\D/g, "").length < 6) return res.status(400).json({ ok: false, message: "Inserisci un numero di telefono valido." });
+    let orderDiscount = null;
+    try {
+      orderDiscount = discountCodes.validateOrderDiscount({
+        discountCodeId: req.body && req.body.discountCodeId,
+        productCategory,
+        productName,
+        priceLabel,
+      }, req.currentUser);
+    } catch (error) {
+      return res.status(400).json({ ok: false, message: error.message });
+    }
+    const finalPriceLabel = orderDiscount
+      ? orderDiscount.discountedPriceLabel + " (sconto " + orderDiscount.percent + "% codice " + orderDiscount.code + ", originale " + priceLabel + ")"
+      : priceLabel;
     const order = orders.createOrder({
       userId: req.currentUser.id,
       email: req.currentUser.email,
@@ -782,13 +838,17 @@ function createApp(overrides = {}) {
       discordUsername,
       productCategory,
       productName,
-      priceLabel,
+      priceLabel: finalPriceLabel,
       paymentMethod: "Revolut",
       paymentLink: "https://revolut.me/angelo2tqp",
       ip: req.clientIp,
     });
+    if (orderDiscount) {
+      discountCodes.attachDiscountToOrder(orderDiscount.id, req.currentUser, { productCategory, productName }, order.id);
+      broadcaster.broadcast("discount-codes:update", { codeId: orderDiscount.id, orderId: order.id }, { userIds: staffUserIdsFor("discountCodes") });
+    }
     broadcastOrder("new", order);
-    res.status(201).json({ ok: true, order });
+    res.status(201).json({ ok: true, order, discount: orderDiscount });
   });
 
   app.get("/api/orders/mine", requireAuth, function (req, res) {
@@ -803,6 +863,8 @@ function createApp(overrides = {}) {
     const order = requireOrderAccess(req, res);
     if (!order) return;
     const updated = orders.markPaymentConfirmed(order.id);
+    discountCodes.markOrderPaymentOpened(order.id);
+    broadcaster.broadcast("discount-codes:update", { orderId: order.id }, { userIds: staffUserIdsFor("discountCodes") });
     broadcastOrder("update", updated);
     res.json({ ok: true, order: updated });
   });
@@ -822,6 +884,8 @@ function createApp(overrides = {}) {
     const order = orders.getOrder(parseInt(req.params.id, 10));
     if (!order) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
     const updated = orders.markCompleted(order.id);
+    discountCodes.markOrderCompleted(order.id);
+    broadcaster.broadcast("discount-codes:update", { orderId: order.id }, { userIds: staffUserIdsFor("discountCodes") });
     broadcastOrder("update", updated);
     res.json({ ok: true, order: updated });
   });
