@@ -776,9 +776,7 @@ function createApp(overrides = {}) {
   });
 
   app.get("/api/discount-codes/reserved", requireAuth, function (req, res) {
-    const discount = discountCodes.reservedDiscountForProduct({
-      productCategory: req.query.productCategory,
-      productName: req.query.productName,
+    const discount = discountCodes.reservedDiscountForUser({
       priceLabel: req.query.priceLabel,
     }, req.currentUser);
     res.json({ ok: true, discount });

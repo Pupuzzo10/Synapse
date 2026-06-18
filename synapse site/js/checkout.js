@@ -148,7 +148,7 @@
       priceNode,
     ]);
     if (currentDiscount) {
-      summary.appendChild(el("span", { class: "checkout-discount-applied", text: "Codice " + currentDiscount.code + " applicato a questo prodotto" }));
+      summary.appendChild(el("span", { class: "checkout-discount-applied", text: "Codice " + currentDiscount.code + " applicato al tuo account" }));
     }
     return summary;
   }
@@ -196,7 +196,7 @@
     row.appendChild(input);
     row.appendChild(applyBtn);
     wrap.appendChild(row);
-    wrap.appendChild(el("p", { class: "checkout-discount-hint", text: currentDiscount ? "Lo sconto è riservato al tuo account e non può più essere usato da altri." : "Il codice diventa monouso appena viene applicato al tuo account." }));
+    wrap.appendChild(el("p", { class: "checkout-discount-hint", text: currentDiscount ? "Lo sconto è riservato al tuo account, vale su tutti i prodotti e non può più essere usato da altri." : "Il codice vale su tutti i prodotti e diventa monouso appena viene applicato al tuo account." }));
     return wrap;
   }
 

@@ -24,6 +24,8 @@
   var workingContent = null;
   var workingStatus = null;
   var discountCodesCache = [];
+  var discountCodesLoaded = false;
+  var discountCodesLoading = false;
   var activeTab = "hero";
   var currentStaffRole = "user";
 
@@ -1094,50 +1096,21 @@ function tab_robloxScripts() {
     return String(status || "available").replace(/[^a-z0-9_-]/gi, "_");
   }
 
-  function addDiscountProductOption(list, category, name, price) {
-    category = String(category || "").trim();
-    name = String(name || "").trim();
-    price = String(price || "").trim();
-    if (!category || !name) return;
-    var key = (category + "\u001f" + name).toLowerCase();
-    if (list.some(function (item) { return item.key === key; })) return;
-    list.push({
-      key: key,
-      value: category + "\u001f" + name,
-      label: category + " · " + name + (price ? " · " + price : ""),
-      category: category,
-      name: name,
-      price: price,
-    });
-  }
-
-  function collectDiscountProductOptions() {
-    var c = workingContent || {};
-    var out = [];
-    ((c.bot && c.bot.plans) || []).forEach(function (p) { addDiscountProductOption(out, "Bot Discord", p.name, p.price); });
-    (((c.bot && c.bot.emojiPack && c.bot.emojiPack.rows) || [])).forEach(function (r) { addDiscountProductOption(out, "Emoji pack", r.quantity, r.price); });
-    ((c.hosting && c.hosting.rows) || []).forEach(function (r) { addDiscountProductOption(out, "Hosting", r.duration, r.price); });
-    ((c.fivemScripts && c.fivemScripts.plans) || []).forEach(function (p) { addDiscountProductOption(out, "Script FiveM", p.name, p.price); });
-    ((c.fivemScripts && c.fivemScripts.extras) || []).forEach(function (r) { addDiscountProductOption(out, "Extra Script FiveM", r.name, r.price); });
-    ((c.robloxScripts && c.robloxScripts.plans) || []).forEach(function (p) { addDiscountProductOption(out, "Script Roblox", p.name, p.price); });
-    ((c.robloxScripts && c.robloxScripts.extras) || []).forEach(function (r) { addDiscountProductOption(out, "Extra Script Roblox", r.name, r.price); });
-    ((c.code && c.code.plans) || []).forEach(function (p) { addDiscountProductOption(out, "Codice sorgente", p.name, p.price); });
-    ((c.logos && c.logos.plans) || []).forEach(function (p) { addDiscountProductOption(out, "Logo", p.name, p.price); });
-    ((c.websites && c.websites.plans) || []).forEach(function (p) { addDiscountProductOption(out, "Sito web", p.name, p.price); });
-    ((c.websites && c.websites.extras) || []).forEach(function (r) { addDiscountProductOption(out, "Extra sito web", r.name, r.price); });
-    ((c.customServices && c.customServices.services) || []).forEach(function (svc) { addDiscountProductOption(out, "Servizio custom", svc.title, svc.price); });
-    return out.sort(function (a, b) { return a.label.localeCompare(b.label); });
-  }
-
   function loadDiscountCodes(after) {
-    fetch(appBaseUrl + "/api/admin/discount-codes", { headers: authHeaders({ Accept: "application/json" }) })
+    if (discountCodesLoading) return Promise.resolve();
+    discountCodesLoading = true;
+    return fetch(appBaseUrl + "/api/admin/discount-codes", { headers: authHeaders({ Accept: "application/json" }) })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (data.ok) discountCodesCache = data.codes || [];
+        if (data.ok) {
+          discountCodesCache = data.codes || [];
+          discountCodesLoaded = true;
+        }
         if (typeof after === "function") after();
         if (activeTab === "discountCodes") renderActiveTab();
       })
-      .catch(function () {});
+      .catch(function () {})
+      .finally(function () { discountCodesLoading = false; });
   }
 
   function createDiscountCode(payload) {
@@ -1158,15 +1131,12 @@ function tab_robloxScripts() {
   function tab_discountCodes() {
     var box = el("div", { class: "admin-dashboard admin-discount-dashboard" });
     var head = el("div", { class: "admin-page-head" });
-    head.appendChild(el("div", { html: "<h3>Codici Sconto</h3><p class='muted small'>Solo CEO. Ogni codice vale per un solo prodotto e diventa monouso appena un utente lo applica.</p>" }));
+    head.appendChild(el("div", { html: "<h3>Codici Sconto</h3><p class='muted small'>Solo CEO. Ogni codice vale su tutti i prodotti e diventa monouso appena un utente lo applica.</p>" }));
     head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica codici", onclick: function () { loadDiscountCodes(); } }));
     box.appendChild(head);
 
-    var options = collectDiscountProductOptions();
-    var selectedValue = options[0] ? options[0].value : "";
-    var codeInput = el("input", { type: "text", maxlength: "80", placeholder: "Esempio: BOTBASIC20" });
+    var codeInput = el("input", { type: "text", maxlength: "80", placeholder: "Esempio: SYNAPSE20" });
     var percentInput = el("input", { type: "number", min: "1", max: "100", step: "0.01", placeholder: "20" });
-    var productSelect = select(selectedValue, options.map(function (item) { return { value: item.value, label: item.label }; }), function (v) { selectedValue = v; });
     var createMsg = el("p", { class: "auth-message", "aria-live": "polite", hidden: "" });
     function localMsg(text, type) {
       createMsg.textContent = text || "";
@@ -1177,30 +1147,23 @@ function tab_robloxScripts() {
 
     var form = el("div", { class: "admin-card-wrap admin-discount-form" });
     form.appendChild(el("h4", { text: "Crea nuovo codice" }));
-    if (!options.length) {
-      form.appendChild(el("p", { class: "muted small", text: "Nessun prodotto disponibile nei contenuti attuali." }));
-    } else {
-      form.appendChild(field("Nome codice", codeInput));
-      form.appendChild(field("Percentuale sconto", percentInput));
-      form.appendChild(field("Prodotto associato", productSelect));
-      form.appendChild(createMsg);
-      form.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Crea codice sconto", onclick: function () {
-        var selected = options.find(function (item) { return item.value === selectedValue; }) || options[0];
-        localMsg("Creazione codice in corso...", "info");
-        createDiscountCode({
-          code: codeInput.value,
-          percent: percentInput.value,
-          productCategory: selected && selected.category,
-          productName: selected && selected.name,
-        }).then(function (r) {
-          if (!r.ok || !r.data.ok) throw new Error((r.data && r.data.message) || "Errore");
-          codeInput.value = "";
-          percentInput.value = "";
-          localMsg("Codice sconto creato.", "success");
-          loadDiscountCodes();
-        }).catch(function (error) { localMsg(error.message, "error"); });
-      } }));
-    }
+    form.appendChild(el("p", { class: "muted small", text: "Il codice si applica a qualsiasi prodotto acquistato dall'utente." }));
+    form.appendChild(field("Nome codice", codeInput));
+    form.appendChild(field("Percentuale sconto", percentInput));
+    form.appendChild(createMsg);
+    form.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Crea codice sconto", onclick: function () {
+      localMsg("Creazione codice in corso...", "info");
+      createDiscountCode({
+        code: codeInput.value,
+        percent: percentInput.value,
+      }).then(function (r) {
+        if (!r.ok || !r.data.ok) throw new Error((r.data && r.data.message) || "Errore");
+        codeInput.value = "";
+        percentInput.value = "";
+        localMsg("Codice sconto creato.", "success");
+        loadDiscountCodes();
+      }).catch(function (error) { localMsg(error.message, "error"); });
+    } }));
     box.appendChild(form);
 
     var availableCount = discountCodesCache.filter(function (c) { return c.status === "available"; }).length;
@@ -1215,8 +1178,8 @@ function tab_robloxScripts() {
 
     var list = el("div", { class: "admin-discount-list" });
     if (!discountCodesCache.length) {
-      list.appendChild(el("p", { class: "muted small", text: "Nessun codice sconto creato. Caricamento..." }));
-      loadDiscountCodes();
+      list.appendChild(el("p", { class: "muted small", text: discountCodesLoading ? "Caricamento codici..." : "Nessun codice sconto creato." }));
+      if (!discountCodesLoaded && !discountCodesLoading) loadDiscountCodes();
     }
     discountCodesCache.forEach(function (code) {
       var statusClass = discountStatusClass(code.status);
@@ -1229,7 +1192,7 @@ function tab_robloxScripts() {
         el("strong", { text: code.code }),
         el("span", { text: "-" + code.percent + "%" }),
       ]));
-      card.appendChild(el("p", { class: "admin-ticket-product", text: "Prodotto: " + code.productCategory + " · " + code.productName }));
+      card.appendChild(el("p", { class: "admin-ticket-product", text: "Validità: tutti i prodotti" }));
       if (code.reservedByEmail) card.appendChild(el("p", { class: "admin-ticket-meta", text: "Associato a: " + code.reservedByEmail + (code.reservedAt ? " · " + new Date(code.reservedAt).toLocaleString() : "") }));
       if (code.attachedOrderId) card.appendChild(el("p", { class: "admin-ticket-meta", text: "Ordine associato: #" + code.attachedOrderId + (code.attachedAt ? " · " + new Date(code.attachedAt).toLocaleString() : "") }));
       if (code.usedAt) card.appendChild(el("p", { class: "admin-ticket-meta", text: "Usato definitivamente: " + new Date(code.usedAt).toLocaleString() }));
