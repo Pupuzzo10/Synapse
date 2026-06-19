@@ -50,6 +50,22 @@ function createConfig(overrides = {}) {
       overrides.securityDashboardSecret ||
       process.env.SECURITY_DASHBOARD_SECRET ||
       "synapsehub-security-dev-secret",
+    discordClientId:
+      overrides.discordClientId ||
+      process.env.DISCORD_CLIENT_ID ||
+      "1515719063739826189",
+    discordClientSecret:
+      overrides.discordClientSecret ||
+      process.env.DISCORD_CLIENT_SECRET ||
+      "",
+    discordBotToken:
+      overrides.discordBotToken ||
+      process.env.DISCORD_BOT_TOKEN ||
+      "",
+    discordOAuthRedirectUri:
+      overrides.discordOAuthRedirectUri ||
+      process.env.DISCORD_REDIRECT_URI ||
+      "",
     sessionSecret,
     sessionCookieName:
       overrides.sessionCookieName || process.env.SESSION_COOKIE_NAME || "synapse.sid",

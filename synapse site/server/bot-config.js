@@ -55,14 +55,15 @@ function parseSnowflake(value) {
   if (value == null || value === "") return null;
   const text = String(value).trim();
   if (!/^\d{15,25}$/.test(text)) return null;
-  return Number(text);
+  // Gli ID Discord sono snowflake a 64 bit: mantenerli come stringhe evita perdita di precisione in Node.js.
+  return text;
 }
 
 function parseSnowflakeList(value) {
   if (Array.isArray(value)) {
     return Array.from(new Set(value.map(parseSnowflake).filter(Boolean)));
   }
-  return Array.from(new Set(String(value || "").match(/\d{15,25}/g) || [])).map(Number);
+  return Array.from(new Set(String(value || "").match(/\d{15,25}/g) || []));
 }
 
 function bool(value, fallback) {

@@ -4481,3 +4481,363 @@ main {
     grid-template-columns: 1fr;
   }
 }
+
+/* SynapseHub Security Bot Config Dashboard */
+.bot-config-page-body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(255,255,255,.08), transparent 30%),
+    radial-gradient(circle at 88% 18%, rgba(255,255,255,.05), transparent 26%),
+    #080808;
+}
+
+.bot-config-header {
+  backdrop-filter: blur(18px);
+}
+
+.bot-config-nav .bot-config-logout {
+  border: 1px solid rgba(255,255,255,.14);
+  color: #fff;
+  background: rgba(255,255,255,.08);
+  cursor: pointer;
+}
+
+.bot-config-shell {
+  padding-bottom: 72px;
+}
+
+.bot-config-hero {
+  padding: 96px 0 34px;
+}
+
+.bot-config-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 36px;
+}
+
+.bot-config-hero h1 {
+  margin: 0;
+  font-size: clamp(2.45rem, 6vw, 5.5rem);
+  letter-spacing: -.07em;
+  line-height: .9;
+}
+
+.bot-config-orb {
+  width: min(28vw, 230px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 42px;
+  background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.025));
+  box-shadow: 0 28px 90px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.18);
+}
+
+.bot-config-orb img {
+  width: 62%;
+  filter: drop-shadow(0 18px 36px rgba(0,0,0,.48));
+}
+
+.bot-config-dashboard {
+  padding-top: 24px;
+}
+
+.bot-config-status {
+  max-width: 980px;
+  margin: 0 auto 22px;
+}
+
+.bot-config-status .btn {
+  margin-top: 18px;
+}
+
+.bot-config-app {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.bot-config-sidebar,
+.bot-config-form,
+.bot-config-card,
+.bot-config-user-card,
+.bot-config-server-box,
+.bot-config-empty-card {
+  border: 1px solid rgba(255,255,255,.12);
+  background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.028));
+  box-shadow: 0 24px 80px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
+  border-radius: 24px;
+}
+
+.bot-config-sidebar {
+  position: sticky;
+  top: 88px;
+  padding: 16px;
+}
+
+.bot-config-user-card,
+.bot-config-server-box,
+.bot-config-empty-card {
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.bot-config-user-kicker,
+.bot-config-server-box label,
+.bot-config-card-title small,
+.bot-config-field small {
+  color: rgba(255,255,255,.58);
+  font-size: .78rem;
+}
+
+.bot-config-user-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.08rem;
+}
+
+.bot-config-user-card small {
+  display: block;
+  margin-top: 2px;
+  color: rgba(255,255,255,.52);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.bot-config-server-box select,
+.bot-config-field select,
+.bot-config-field input,
+.bot-config-field textarea,
+.bot-config-number-grid input {
+  width: 100%;
+  color: #fff;
+  background: rgba(0,0,0,.34);
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 14px;
+  padding: 12px 13px;
+  outline: none;
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+
+.bot-config-server-box select:focus,
+.bot-config-field select:focus,
+.bot-config-field input:focus,
+.bot-config-field textarea:focus,
+.bot-config-number-grid input:focus {
+  border-color: rgba(255,255,255,.38);
+  background: rgba(0,0,0,.5);
+  box-shadow: 0 0 0 4px rgba(255,255,255,.05);
+}
+
+.bot-config-server-box select option,
+.bot-config-field select option {
+  background: #111;
+  color: #fff;
+}
+
+.bot-config-guild-list {
+  display: grid;
+  gap: 10px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.bot-config-guild-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+  color: #fff;
+  text-align: left;
+  border-radius: 18px;
+  padding: 11px;
+  cursor: pointer;
+}
+
+.bot-config-guild-card:hover,
+.bot-config-guild-card.is-active {
+  border-color: rgba(255,255,255,.34);
+  background: rgba(255,255,255,.105);
+}
+
+.bot-config-guild-card-muted {
+  opacity: .72;
+}
+
+.bot-config-guild-avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 16px;
+  background: rgba(255,255,255,.12);
+  overflow: hidden;
+  font-weight: 800;
+}
+
+.bot-config-guild-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bot-config-guild-card strong,
+.bot-config-guild-card small {
+  display: block;
+}
+
+.bot-config-guild-card small {
+  margin-top: 2px;
+  color: rgba(255,255,255,.58);
+}
+
+.bot-config-form {
+  padding: 20px;
+}
+
+.bot-config-panel-headline {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.bot-config-panel-headline h2 {
+  margin: 0 0 6px;
+  font-size: clamp(1.65rem, 3vw, 2.5rem);
+  letter-spacing: -.045em;
+}
+
+.bot-config-grid-main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.bot-config-card {
+  padding: 18px;
+}
+
+.bot-config-card-wide {
+  grid-column: 1 / -1;
+}
+
+.bot-config-card-title {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+
+.bot-config-card-title span {
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.bot-config-two-cols,
+.bot-config-three-cols,
+.bot-config-number-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.bot-config-two-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bot-config-three-cols {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.bot-config-field,
+.bot-config-number-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.bot-config-field > span,
+.bot-config-number-grid span {
+  font-weight: 700;
+  font-size: .92rem;
+}
+
+.bot-config-number-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bot-config-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 14px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px;
+  background: rgba(0,0,0,.24);
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.bot-config-switch input {
+  width: 20px;
+  height: 20px;
+  accent-color: #fff;
+}
+
+.bot-config-pick-list {
+  display: grid;
+  gap: 8px;
+  max-height: 230px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: rgba(0,0,0,.26);
+}
+
+.bot-config-role-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  color: rgba(255,255,255,.88);
+}
+
+.bot-config-role-option input {
+  accent-color: #fff;
+}
+
+@media (max-width: 1100px) {
+  .bot-config-app,
+  .bot-config-grid-main,
+  .bot-config-two-cols,
+  .bot-config-three-cols {
+    grid-template-columns: 1fr;
+  }
+  .bot-config-sidebar {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .bot-config-hero-inner,
+  .bot-config-panel-headline,
+  .bot-config-number-grid {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+  .bot-config-orb {
+    display: none;
+  }
+  .bot-config-hero {
+    padding-top: 72px;
+  }
+}

@@ -19,6 +19,7 @@ const { createDiscountCodes } = require("./discount-codes");
 const { createReviews } = require("./reviews");
 const { lookupSecurityReport } = require("./security-reports");
 const { getGuildConfig, setGuildConfig, verifyConfigToken } = require("./bot-config");
+const { createBotConfigPanel } = require("./bot-config-panel");
 
 const STAFF_ROLE_LABELS = {
   user: "Utente",
@@ -345,6 +346,8 @@ function createApp(overrides = {}) {
     limit: 30,
     message: "Troppe verifiche security. Attendi qualche secondo prima di riprovare.",
   });
+
+  app.use("/api/bot-config", createBotConfigPanel({ config }));
 
   const orderLimiter = buildRateLimiter({
     windowMs: 10 * 60 * 1000,
@@ -1493,6 +1496,14 @@ function createApp(overrides = {}) {
 
   app.get("/security.html", function (req, res) {
     sendPublicPage(req, res, "security.html");
+  });
+
+  app.get("/bot-config", function (req, res) {
+    sendPublicPage(req, res, "bot-config.html");
+  });
+
+  app.get("/bot-config.html", function (req, res) {
+    sendPublicPage(req, res, "bot-config.html");
   });
 
   app.get("/styles.css", function (req, res) {
