@@ -536,18 +536,21 @@ function createApp(overrides = {}) {
       queueVerificationEmail(user);
       const session = req.destroySession ? req.destroySession() : req.authSession;
 
+      const isEmailSimulated = Boolean(mailer.isDevelopmentStream);
+      const emailMode = mailer.mode || "unknown";
+
       return res.status(201).json({
         ok: true,
         requiresEmailVerification: true,
         emailDelivery: {
           ok: true,
           queued: true,
-          simulated: Boolean(mailer.isDevelopmentStream),
-          mode: mailer.mode || "unknown",
+          simulated: isEmailSimulated,
+          mode: emailMode,
         },
-        message: mailer.mode === "smtp"
-          ? "Account creato. Ti stiamo inviando l'email di conferma. Se non arriva entro pochi minuti, usa Rinvia email di conferma."
-          : "Account creato, ma l'email e in modalita sviluppo: il link di conferma viene scritto nei log Render. Configura Resend o SMTP per inviarla davvero.",
+        message: isEmailSimulated
+          ? "Account creato, ma l'email e in modalita sviluppo: il link di conferma viene scritto nei log Render. Configura Resend per inviarla davvero."
+          : "Account creato. Ti stiamo inviando l'email di conferma. Se non arriva entro pochi minuti, usa Rinvia email di conferma.",
         sessionId: session && session.id,
         csrfToken: session && session.csrfToken,
         user: null,
