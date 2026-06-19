@@ -140,4 +140,117 @@
       );
     }
   });
+
+  var configForm = document.getElementById("bot-config-form");
+  var configStatus = document.getElementById("bot-config-status");
+  var configReload = document.getElementById("bot-config-reload");
+  var params = new URLSearchParams(window.location.search);
+  var configAccess = {
+    guild_id: params.get("guild_id") || "",
+    user_id: params.get("user_id") || "",
+    expires: params.get("expires") || "",
+    token: params.get("token") || "",
+  };
+
+  function setConfigStatus(className, title, message) {
+    if (!configStatus) return;
+    configStatus.className = "security-result " + className;
+    configStatus.innerHTML = '<div class="security-result-kicker">Pannello configurazione</div><h3>' + escapeHtml(title) + '</h3><p>' + escapeHtml(message) + '</p>';
+  }
+
+  function idsToText(value) {
+    return Array.isArray(value) ? value.join(", ") : "";
+  }
+
+  function textToIds(value) {
+    return String(value || "").match(/\d{15,25}/g) || [];
+  }
+
+  function setField(name, value) {
+    if (!configForm) return;
+    var field = configForm.elements[name];
+    if (!field) return;
+    if (field.type === "checkbox") {
+      field.checked = Boolean(value);
+    } else if (Array.isArray(value)) {
+      field.value = idsToText(value);
+    } else if (value == null) {
+      field.value = "";
+    } else {
+      field.value = String(value);
+    }
+  }
+
+  function fillConfig(config) {
+    if (!configForm) return;
+    setField("guild_id", configAccess.guild_id);
+    Object.keys(config || {}).forEach(function (key) { setField(key, config[key]); });
+    configForm.hidden = false;
+  }
+
+  function readConfigForm() {
+    var names = [
+      "channel_id", "role_id", "report_channel_id", "admin_role_ids", "bypass_user_ids", "bypass_role_ids",
+      "command_prefix", "spam_window_seconds", "spam_max_messages", "spam_duplicate_window_seconds",
+      "spam_duplicate_max_messages", "spam_max_mentions", "spam_action_cooldown_seconds",
+      "nuke_audit_lookback_seconds", "nuke_window_seconds", "nuke_channel_threshold", "nuke_role_threshold",
+      "nuke_member_threshold", "nuke_invite_threshold", "nuke_webhook_threshold", "timeout_hours", "history_ttl_hours"
+    ];
+    var out = {};
+    names.forEach(function (name) {
+      var field = configForm.elements[name];
+      if (!field) return;
+      if (["admin_role_ids", "bypass_user_ids", "bypass_role_ids"].indexOf(name) !== -1) {
+        out[name] = textToIds(field.value);
+      } else if (field.type === "number") {
+        out[name] = Number.parseInt(field.value, 10);
+      } else {
+        out[name] = field.value.trim();
+      }
+    });
+    ["anti_link_enabled", "anti_spam_enabled", "anti_nuke_enabled"].forEach(function (name) {
+      out[name] = Boolean(configForm.elements[name] && configForm.elements[name].checked);
+    });
+    return out;
+  }
+
+  async function loadBotConfig() {
+    if (!configForm || !configStatus) return;
+    if (!configAccess.guild_id || !configAccess.user_id || !configAccess.expires || !configAccess.token) return;
+    setConfigStatus("security-result-loading", "Caricamento configurazione", "Stiamo leggendo la configurazione del server Discord.");
+    try {
+      var query = new URLSearchParams(configAccess).toString();
+      var response = await fetch("/api/security/bot-config/" + encodeURIComponent(configAccess.guild_id) + "?" + query, { headers: { "Accept": "application/json" } });
+      var payload = await response.json().catch(function () { return null; });
+      if (!response.ok || !payload || !payload.ok) throw new Error(payload && payload.message ? payload.message : "Configurazione non disponibile.");
+      fillConfig(payload.config);
+      setConfigStatus("security-result-safe", "Configurazione caricata", "Puoi modificare le impostazioni e salvarle. Le modifiche valgono solo per questo server.");
+      if (window.location.hash !== "#bot-config") window.location.hash = "bot-config";
+    } catch (error) {
+      setConfigStatus("security-result-error", "Accesso negato", error.message || "Link non valido o scaduto.");
+    }
+  }
+
+  if (configForm) {
+    configForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      setConfigStatus("security-result-loading", "Salvataggio in corso", "Stiamo aggiornando la configurazione del bot.");
+      try {
+        var response = await fetch("/api/security/bot-config/" + encodeURIComponent(configAccess.guild_id), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify(Object.assign({}, configAccess, { config: readConfigForm() })),
+        });
+        var payload = await response.json().catch(function () { return null; });
+        if (!response.ok || !payload || !payload.ok) throw new Error(payload && payload.message ? payload.message : "Salvataggio non riuscito.");
+        fillConfig(payload.config);
+        setConfigStatus("security-result-safe", "Configurazione salvata", "Il bot userà queste impostazioni per questo server.");
+      } catch (error) {
+        setConfigStatus("security-result-error", "Errore salvataggio", error.message || "Non è stato possibile salvare la configurazione.");
+      }
+    });
+  }
+  if (configReload) configReload.addEventListener("click", loadBotConfig);
+  loadBotConfig();
+
 })();

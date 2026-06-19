@@ -4386,3 +4386,98 @@ main {
   opacity: .7;
   transform: none;
 }
+
+
+.security-config-section {
+  padding-top: 4rem;
+}
+
+.security-config-panel {
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: linear-gradient(180deg, rgba(16, 16, 16, .96), rgba(8, 8, 8, .96));
+  border-radius: 2rem;
+  padding: clamp(1.2rem, 3vw, 2rem);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, .38);
+}
+
+.security-config-form {
+  display: grid;
+  gap: 1.4rem;
+  margin-top: 1.4rem;
+}
+
+.security-config-grid,
+.security-config-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.security-config-grid label,
+.security-config-columns label {
+  display: grid;
+  gap: .45rem;
+  color: #e8e8e8;
+  font-weight: 800;
+}
+
+.security-config-grid input,
+.security-config-grid select,
+.security-config-grid textarea,
+.security-config-columns input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, .04);
+  color: #fff;
+  padding: .85rem 1rem;
+  font: inherit;
+  outline: none;
+}
+
+.security-config-grid textarea {
+  resize: vertical;
+}
+
+.security-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .85rem;
+}
+
+.security-toggle-grid label {
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, .04);
+  padding: 1rem;
+  color: #f7f7f7;
+  font-weight: 900;
+}
+
+.security-config-columns fieldset {
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 1.2rem;
+  padding: 1rem;
+  display: grid;
+  gap: .8rem;
+}
+
+.security-config-columns legend {
+  color: #fff;
+  font-weight: 900;
+  padding: 0 .4rem;
+}
+
+.security-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .8rem;
+}
+
+@media (max-width: 900px) {
+  .security-config-grid,
+  .security-config-columns,
+  .security-toggle-grid {
+    grid-template-columns: 1fr;
+  }
+}

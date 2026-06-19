@@ -18,6 +18,7 @@ const { createOrders } = require("./orders");
 const { createDiscountCodes } = require("./discount-codes");
 const { createReviews } = require("./reviews");
 const { lookupSecurityReport } = require("./security-reports");
+const { getGuildConfig, setGuildConfig, verifyConfigToken } = require("./bot-config");
 
 const STAFF_ROLE_LABELS = {
   user: "Utente",
@@ -858,6 +859,33 @@ function createApp(overrides = {}) {
         message: error.message || "Verifica security non disponibile.",
       });
     }
+  });
+
+  function validateBotConfigAccess(req) {
+    const guildId = req.params.guildId || req.body.guild_id || req.query.guild_id;
+    const userId = req.body.user_id || req.query.user_id;
+    const expires = req.body.expires || req.query.expires;
+    const token = req.body.token || req.query.token;
+    return verifyConfigToken(config.securityDashboardSecret, guildId, userId, expires, token);
+  }
+
+  app.get("/api/security/bot-config/:guildId", securityLookupLimiter, function (req, res) {
+    if (!validateBotConfigAccess(req)) {
+      return res.status(403).json({ ok: false, message: "Link configurazione non valido o scaduto. Usa di nuovo /config nel server Discord." });
+    }
+    return res.json({
+      ok: true,
+      guildId: req.params.guildId,
+      config: getGuildConfig(config.botConfigPath, req.params.guildId),
+    });
+  });
+
+  app.put("/api/security/bot-config/:guildId", securityLookupLimiter, express.json({ limit: "32kb" }), function (req, res) {
+    if (!validateBotConfigAccess(req)) {
+      return res.status(403).json({ ok: false, message: "Link configurazione non valido o scaduto. Usa di nuovo /config nel server Discord." });
+    }
+    const saved = setGuildConfig(config.botConfigPath, req.params.guildId, req.body.config || {});
+    return res.json({ ok: true, guildId: req.params.guildId, config: saved });
   });
 
   app.get("/api/status", function (req, res) {

@@ -41,6 +41,15 @@ function createConfig(overrides = {}) {
       overrides.securityReportsDbPath ||
       process.env.SECURITY_REPORTS_DB_PATH ||
       path.join(dataDir, "segnalazioni.db"),
+    botConfigPath:
+      overrides.botConfigPath ||
+      process.env.SERVER_ALERT_CONFIG_PATH ||
+      process.env.BOT_CONFIG_PATH ||
+      path.join(dataDir, "server_alert_config.json"),
+    securityDashboardSecret:
+      overrides.securityDashboardSecret ||
+      process.env.SECURITY_DASHBOARD_SECRET ||
+      "synapsehub-security-dev-secret",
     sessionSecret,
     sessionCookieName:
       overrides.sessionCookieName || process.env.SESSION_COOKIE_NAME || "synapse.sid",
