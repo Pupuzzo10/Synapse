@@ -144,4 +144,5 @@ module.exports = {
   setGuildConfig,
   sanitizeConfig,
   verifyConfigToken,
+  loadAllConfig,
 };

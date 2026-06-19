@@ -1,7 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 
-const { getGuildConfig, setGuildConfig } = require("./bot-config");
+const { getGuildConfig, setGuildConfig, sanitizeConfig, loadAllConfig } = require("./bot-config");
 
 const ADMINISTRATOR_PERMISSION = 0x8n;
 const BOT_INVITE_URL = "https://discord.com/oauth2/authorize?client_id=1515719063739826189&permissions=8&integration_type=0&scope=bot+applications.commands";
@@ -271,6 +271,22 @@ function createBotConfigPanel({ config }) {
 
   router.get("/me", requireSession, async function (req, res) {
     return res.json({ ok: true, user: req.discordSession.user });
+  });
+
+  router.get("/sync", function (req, res) {
+    const provided = String(req.get("x-synapse-dashboard-secret") || req.query.secret || "").trim();
+    if (!provided || !safeCompare(provided, secret)) {
+      return res.status(403).json({ ok: false, message: "Accesso sync non autorizzato." });
+    }
+
+    const raw = loadAllConfig(config.botConfigPath);
+    const configs = {};
+    Object.keys(raw).forEach(function (guildId) {
+      if (/^\d{15,25}$/.test(String(guildId)) && raw[guildId] && typeof raw[guildId] === "object") {
+        configs[String(guildId)] = sanitizeConfig(raw[guildId]);
+      }
+    });
+    return res.json({ ok: true, generated_at: new Date().toISOString(), configs });
   });
 
   router.get("/guilds", requireSession, async function (req, res) {
