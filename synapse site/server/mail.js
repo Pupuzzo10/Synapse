@@ -1,8 +1,26 @@
+const dns = require("node:dns");
 const nodemailer = require("nodemailer");
+
+try {
+  if (typeof dns.setDefaultResultOrder === "function") {
+    dns.setDefaultResultOrder("ipv4first");
+  }
+} catch (_error) {
+  // Node versions without setDefaultResultOrder can safely continue.
+}
 
 function parseIntOr(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isTruthyEnv(value, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+  return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
+}
+
+function normalizeAppPassword(value) {
+  return String(value || "").replace(/\s+/g, "");
 }
 
 function createMailer(config, overrides = {}) {
@@ -34,16 +52,19 @@ function createMailer(config, overrides = {}) {
   if (config.smtp.host && config.smtp.user && config.smtp.pass) {
     mode = "smtp";
     const smtpTimeoutMs = parseIntOr(process.env.SMTP_TIMEOUT_MS, 10000);
+    const forceIpv4 = isTruthyEnv(process.env.SMTP_FORCE_IPV4, true);
     transporter = nodemailer.createTransport({
       host: config.smtp.host,
       port: config.smtp.port,
       secure: config.smtp.secure,
+      family: forceIpv4 ? 4 : undefined,
+      dnsTimeout: smtpTimeoutMs,
       connectionTimeout: smtpTimeoutMs,
       greetingTimeout: smtpTimeoutMs,
       socketTimeout: smtpTimeoutMs + 5000,
       auth: {
-        user: config.smtp.user,
-        pass: config.smtp.pass,
+        user: String(config.smtp.user || "").trim(),
+        pass: normalizeAppPassword(config.smtp.pass),
       },
       tls: {
         servername: config.smtp.host,
