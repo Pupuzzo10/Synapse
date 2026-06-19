@@ -1,5 +1,10 @@
 const nodemailer = require("nodemailer");
 
+function parseIntOr(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function createMailer(config, overrides = {}) {
   if (overrides.sendVerificationEmail) {
     return {
@@ -28,13 +33,20 @@ function createMailer(config, overrides = {}) {
 
   if (config.smtp.host && config.smtp.user && config.smtp.pass) {
     mode = "smtp";
+    const smtpTimeoutMs = parseIntOr(process.env.SMTP_TIMEOUT_MS, 10000);
     transporter = nodemailer.createTransport({
       host: config.smtp.host,
       port: config.smtp.port,
       secure: config.smtp.secure,
+      connectionTimeout: smtpTimeoutMs,
+      greetingTimeout: smtpTimeoutMs,
+      socketTimeout: smtpTimeoutMs + 5000,
       auth: {
         user: config.smtp.user,
         pass: config.smtp.pass,
+      },
+      tls: {
+        servername: config.smtp.host,
       },
     });
   } else {

@@ -57,9 +57,24 @@
     return appBaseUrl + path;
   }
 
+  function fetchWithTimeout(url, options, timeoutMs) {
+    var ms = timeoutMs || 30000;
+    if (!window.AbortController) return fetch(url, options);
+
+    var controller = new AbortController();
+    var timer = window.setTimeout(function () {
+      controller.abort();
+    }, ms);
+    var opts = Object.assign({}, options || {}, { signal: controller.signal });
+
+    return fetch(url, opts).finally(function () {
+      window.clearTimeout(timer);
+    });
+  }
+
   function isNetworkFailure(error) {
     var message = (error && error.message) || "";
-    return error && (error.name === "TypeError" || /Failed to fetch|NetworkError|Load failed/i.test(message));
+    return error && (error.name === "AbortError" || error.name === "TypeError" || /Failed to fetch|NetworkError|Load failed/i.test(message));
   }
 
   function makeTransportError(actionLabel) {
@@ -228,9 +243,9 @@
   async function refreshCsrfToken() {
     var response;
     try {
-      response = await fetch(buildUrl("/api/auth/csrf-token"), {
+      response = await fetchWithTimeout(buildUrl("/api/auth/csrf-token"), {
         headers: authHeaders({ Accept: "application/json" }),
-      });
+      }, 15000);
     } catch (error) {
       throw makeTransportError("l'inizializzazione della sessione");
     }
@@ -252,9 +267,10 @@
         authHeaders(),
         requestOptions.headers || {}
       );
-      response = await fetch(
+      response = await fetchWithTimeout(
         buildUrl(url),
-        Object.assign({}, requestOptions, { headers: mergedHeaders })
+        Object.assign({}, requestOptions, { headers: mergedHeaders }),
+        requestOptions.timeoutMs || 30000
       );
     } catch (error) {
       if (isNetworkFailure(error)) {
@@ -318,9 +334,9 @@
   async function refreshSession() {
     var response;
     try {
-      response = await fetch(buildUrl("/api/auth/session"), {
+      response = await fetchWithTimeout(buildUrl("/api/auth/session"), {
         headers: authHeaders({ Accept: "application/json" }),
-      });
+      }, 15000);
     } catch (error) {
       throw makeTransportError("il controllo della sessione");
     }
@@ -440,8 +456,9 @@
         await ensureAuthReady("la registrazione");
         var payload = await fetchJson("/api/auth/register", {
           method: "POST",
+          timeoutMs: 20000,
           failureMessage:
-            "Impossibile completare la registrazione. Verifica che il server sia attivo e che l'endpoint di registrazione sia raggiungibile.",
+            "Impossibile completare la registrazione entro 20 secondi. Controlla i log Render e la configurazione SMTP.",
           body: JSON.stringify({
             username: formRegister.querySelector('[name="username"]').value.trim(),
             email: formRegister.querySelector('[name="email"]').value.trim(),

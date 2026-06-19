@@ -32,6 +32,26 @@ const STAFF_CAPABILITIES = {
   ceo: ["content", "status", "orders", "support", "presence", "users", "moderation", "staffManage", "discountCodes"],
 };
 
+const EMAIL_SEND_TIMEOUT_MS = 10000;
+
+function withTimeout(promise, ms, message) {
+  let timer = null;
+  const timeout = new Promise(function (_resolve, reject) {
+    timer = setTimeout(function () {
+      const error = new Error(message || "Operazione scaduta.");
+      error.code = "EMAIL_SEND_TIMEOUT";
+      reject(error);
+    }, ms);
+  });
+
+  return Promise.race([
+    Promise.resolve(promise).finally(function () {
+      if (timer) clearTimeout(timer);
+    }),
+    timeout,
+  ]);
+}
+
 function normalizeStaffRole(role) {
   const value = String(role || "user").trim().toLowerCase();
   return Object.prototype.hasOwnProperty.call(STAFF_ROLE_LABELS, value) ? value : "user";
@@ -440,12 +460,26 @@ function createApp(overrides = {}) {
       });
       const verificationUrl =
         config.baseUrl + "/verify-email?token=" + encodeURIComponent(rawToken);
-      const delivery = await deliverVerificationEmail(user, verificationUrl);
+      const delivery = await withTimeout(
+        deliverVerificationEmail(user, verificationUrl),
+        EMAIL_SEND_TIMEOUT_MS,
+        "Timeout SMTP durante l'invio della verifica email."
+      );
       return { ok: true, delivery };
     } catch (error) {
       console.warn("[auth] Invio email di verifica non riuscito:", error.message);
       return { ok: false, error };
     }
+  }
+
+  function queueVerificationEmail(user) {
+    sendVerificationEmailSafe(user).then(function (result) {
+      if (!result || !result.ok) {
+        console.warn("[auth] Verifica email messa in coda ma non inviata. Usa i log SMTP e il pulsante Rinvia email di conferma.");
+      }
+    }).catch(function (error) {
+      console.warn("[auth] Errore inatteso nella coda verifica email:", error && error.message ? error.message : error);
+    });
   }
 
   function verificationEmailMessage(result) {
@@ -499,18 +533,21 @@ function createApp(overrides = {}) {
         registerIp: req.clientIp,
       });
 
-      const emailResult = await sendVerificationEmailSafe(user);
+      queueVerificationEmail(user);
       const session = req.destroySession ? req.destroySession() : req.authSession;
 
       return res.status(201).json({
         ok: true,
         requiresEmailVerification: true,
         emailDelivery: {
-          ok: !!(emailResult && emailResult.ok),
-          simulated: !!(emailResult && emailResult.delivery && emailResult.delivery.simulated),
-          mode: emailResult && emailResult.delivery ? emailResult.delivery.mode : (mailer.mode || "unknown"),
+          ok: true,
+          queued: true,
+          simulated: mailer.mode !== "smtp",
+          mode: mailer.mode || "unknown",
         },
-        message: verificationEmailMessage(emailResult),
+        message: mailer.mode === "smtp"
+          ? "Account creato. Ti stiamo inviando l'email di conferma. Se non arriva entro pochi minuti, usa Rinvia email di conferma."
+          : "Account creato, ma l'email e in modalita sviluppo: il link di conferma viene scritto nei log Render. Configura SMTP per inviarla davvero.",
         sessionId: session && session.id,
         csrfToken: session && session.csrfToken,
         user: null,
