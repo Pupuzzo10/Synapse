@@ -26,13 +26,15 @@ app.listen(config.port, function () {
     .then(function (result) {
       if (result.simulated) {
         console.log(
-          "[auth][email] SMTP non configurato: in sviluppo le email sono simulate e i link di verifica vengono scritti nei log."
+          "[auth][email] Provider email non configurato: in sviluppo le email sono simulate e i link di verifica vengono scritti nei log."
         );
+      } else if (result.mode === "resend") {
+        console.log("[auth][email] Resend API configurata con successo.");
       } else {
-        console.log("[auth][email] Connessione SMTP verificata con successo.");
+        console.log("[auth][email] Provider email verificato con successo.");
       }
     })
     .catch(function (error) {
-      console.error("[auth][email] Verifica SMTP fallita:", error.message);
+      console.error("[auth][email] Verifica provider email fallita:", error.message);
     });
 });

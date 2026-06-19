@@ -51,7 +51,12 @@ function createConfig(overrides = {}) {
     verificationTtlMs:
       overrides.verificationTtlMs ||
       parseIntOr(process.env.EMAIL_VERIFICATION_TTL_MS, 1000 * 60 * 60 * 24),
+    emailProvider: (overrides.emailProvider || process.env.EMAIL_PROVIDER || "").trim().toLowerCase(),
     emailFrom: overrides.emailFrom || process.env.EMAIL_FROM || "Synapse <no-reply@synapse.local>",
+    resend: {
+      apiKey: overrides.resendApiKey || process.env.RESEND_API_KEY || "",
+      apiUrl: overrides.resendApiUrl || process.env.RESEND_API_URL || "https://api.resend.com/emails",
+    },
     secureCookies:
       typeof overrides.secureCookies === "boolean"
         ? overrides.secureCookies

@@ -32,7 +32,7 @@ const STAFF_CAPABILITIES = {
   ceo: ["content", "status", "orders", "support", "presence", "users", "moderation", "staffManage", "discountCodes"],
 };
 
-const EMAIL_SEND_TIMEOUT_MS = 10000;
+const EMAIL_SEND_TIMEOUT_MS = Number.parseInt(process.env.EMAIL_SEND_TIMEOUT_MS || "15000", 10) || 15000;
 
 function withTimeout(promise, ms, message) {
   let timer = null;
@@ -463,7 +463,7 @@ function createApp(overrides = {}) {
       const delivery = await withTimeout(
         deliverVerificationEmail(user, verificationUrl),
         EMAIL_SEND_TIMEOUT_MS,
-        "Timeout SMTP durante l'invio della verifica email."
+        "Timeout durante l'invio dell'email di verifica."
       );
       return { ok: true, delivery };
     } catch (error) {
@@ -475,7 +475,7 @@ function createApp(overrides = {}) {
   function queueVerificationEmail(user) {
     sendVerificationEmailSafe(user).then(function (result) {
       if (!result || !result.ok) {
-        console.warn("[auth] Verifica email messa in coda ma non inviata. Usa i log SMTP e il pulsante Rinvia email di conferma.");
+        console.warn("[auth] Verifica email messa in coda ma non inviata. Usa i log del provider email e il pulsante Rinvia email di conferma.");
       }
     }).catch(function (error) {
       console.warn("[auth] Errore inatteso nella coda verifica email:", error && error.message ? error.message : error);
@@ -484,14 +484,14 @@ function createApp(overrides = {}) {
 
   function verificationEmailMessage(result) {
     if (result && result.ok && result.delivery && result.delivery.simulated) {
-      return "Account creato, ma l'email e in modalita sviluppo: il link di conferma viene scritto nei log Render. Configura SMTP per inviarla davvero.";
+      return "Account creato, ma l'email e in modalita sviluppo: il link di conferma viene scritto nei log Render. Configura Resend o SMTP per inviarla davvero.";
     }
 
     if (result && result.ok) {
       return "Account creato. Controlla la tua email e conferma l'indirizzo prima di accedere.";
     }
 
-    return "Account creato, ma l'email di conferma non e partita. Controlla SMTP su Render e poi usa Rinvia email di conferma.";
+    return "Account creato, ma l'email di conferma non e partita. Controlla EMAIL_PROVIDER, RESEND_API_KEY e EMAIL_FROM su Render, poi usa Rinvia email di conferma.";
   }
 
   app.post("/api/auth/register", registerLimiter, requireCsrf, async function (req, res, next) {
@@ -542,12 +542,12 @@ function createApp(overrides = {}) {
         emailDelivery: {
           ok: true,
           queued: true,
-          simulated: mailer.mode !== "smtp",
+          simulated: Boolean(mailer.isDevelopmentStream),
           mode: mailer.mode || "unknown",
         },
         message: mailer.mode === "smtp"
           ? "Account creato. Ti stiamo inviando l'email di conferma. Se non arriva entro pochi minuti, usa Rinvia email di conferma."
-          : "Account creato, ma l'email e in modalita sviluppo: il link di conferma viene scritto nei log Render. Configura SMTP per inviarla davvero.",
+          : "Account creato, ma l'email e in modalita sviluppo: il link di conferma viene scritto nei log Render. Configura Resend o SMTP per inviarla davvero.",
         sessionId: session && session.id,
         csrfToken: session && session.csrfToken,
         user: null,
@@ -584,7 +584,7 @@ function createApp(overrides = {}) {
       if (!emailResult.ok) {
         return res.status(502).json({
           ok: false,
-          message: "Email non inviata. Controlla SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER e SMTP_PASS su Render, poi riprova.",
+          message: "Email non inviata. Controlla EMAIL_PROVIDER, RESEND_API_KEY e EMAIL_FROM su Render. Se usi SMTP, controlla anche le variabili SMTP.",
         });
       }
 
@@ -592,7 +592,7 @@ function createApp(overrides = {}) {
         return res.status(202).json({
           ok: true,
           simulated: true,
-          message: "Email in modalita sviluppo: il link di conferma e nei log Render. Configura SMTP per inviarla davvero.",
+          message: "Email in modalita sviluppo: il link di conferma e nei log Render. Configura Resend o SMTP per inviarla davvero.",
         });
       }
 
