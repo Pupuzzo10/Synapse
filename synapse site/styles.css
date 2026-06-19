@@ -4252,3 +4252,81 @@ main {
     font-size: .8rem;
   }
 }
+
+/* Fix listino: testi lunghi, prezzi e card non devono tagliarsi */
+.product-category-panels,
+.product-category-panel,
+.cards,
+.cards-hosting,
+.cards-emoji,
+.cards-bot,
+.cards-websites,
+.cards-custom-services,
+.cards-script-products {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cards-hosting,
+.cards-emoji,
+.cards-bot,
+.cards-websites,
+.cards-custom-services,
+.cards-script-products {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+
+.card,
+.card * {
+  min-width: 0;
+}
+
+.card h3,
+.card-tagline,
+.card .checklist li,
+.price,
+.custom-service-price {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.price {
+  font-size: clamp(1.28rem, 2.15vw, 1.75rem);
+  line-height: 1.14;
+  white-space: normal;
+  letter-spacing: -0.045em;
+}
+
+.card-simple-product,
+.card-plan,
+.card-script-product,
+.card-website,
+.card-custom-service {
+  overflow: visible;
+}
+
+.card.interactive-hover,
+.callout.interactive-hover,
+.table-wrap.interactive-hover,
+.review-card.interactive-hover,
+.reviews-summary.interactive-hover,
+.product-notes-card.interactive-hover {
+  overflow: clip;
+}
+
+@media (min-width: 1025px) {
+  .cards-hosting {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .price {
+    font-size: clamp(1.2rem, 7vw, 1.55rem);
+  }
+
+  .card {
+    padding: 1.1rem 1rem;
+  }
+}
