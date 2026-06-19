@@ -19,6 +19,33 @@ function normalizeCode(value) {
   return normalizeText(value, 80).toUpperCase();
 }
 
+function normalizeScope(value) {
+  const scope = String(value || "all_products").trim().toLowerCase();
+  return ["all_products", "category", "product"].indexOf(scope) !== -1 ? scope : "all_products";
+}
+
+function normalizeComparable(value) {
+  return normalizeText(value, 180).toLowerCase();
+}
+
+function scopeLabel(code) {
+  const scope = normalizeScope(code && code.appliesTo);
+  if (scope === "category") return "Categoria: " + (code.productCategory || "non indicata");
+  if (scope === "product") return "Prodotto: " + (code.productCategory || "categoria") + " / " + (code.productName || "non indicato");
+  return "Tutti i prodotti";
+}
+
+function discountAppliesToProduct(code, input) {
+  const scope = normalizeScope(code && code.appliesTo);
+  if (scope === "all_products") return true;
+  const wantedCategory = normalizeComparable(code && code.productCategory);
+  const givenCategory = normalizeComparable(input && input.productCategory);
+  if (!wantedCategory || wantedCategory !== givenCategory) return false;
+  if (scope === "category") return true;
+  const wantedProduct = normalizeComparable(code && code.productName);
+  const givenProduct = normalizeComparable(input && input.productName);
+  return !!wantedProduct && wantedProduct === givenProduct;
+}
 
 function parsePercent(value) {
   const percent = Number(String(value == null ? "" : value).replace(",", "."));
@@ -73,6 +100,10 @@ function serialize(code) {
     id: code.id,
     code: code.code,
     percent: code.percent,
+    appliesTo: normalizeScope(code.appliesTo),
+    productCategory: code.productCategory || null,
+    productName: code.productName || null,
+    scopeLabel: scopeLabel(code),
     status,
     createdAt: code.createdAt,
     createdBy: code.createdBy || null,
@@ -92,6 +123,8 @@ function publicDiscount(code, originalPriceLabel) {
     id: code.id,
     code: code.code,
     percent: code.percent,
+    appliesTo: normalizeScope(code.appliesTo),
+    scopeLabel: scopeLabel(code),
     originalPriceLabel: normalizeText(originalPriceLabel, 80),
     discountedPriceLabel: discountPriceLabel(originalPriceLabel, code.percent),
     status: statusOf(code),
@@ -111,8 +144,13 @@ function createDiscountCodes(authDb) {
     const code = normalizeText(input && input.code, 80);
     const codeKey = normalizeCode(code);
     const percent = parsePercent(input && input.percent);
+    const appliesTo = normalizeScope(input && input.appliesTo);
+    const productCategory = normalizeText(input && input.productCategory, 120);
+    const productName = normalizeText(input && input.productName, 160);
     if (!code || code.length < 2) throw new Error("Inserisci un codice sconto di almeno 2 caratteri.");
     if (!percent) throw new Error("Inserisci una percentuale valida tra 1 e 100.");
+    if (appliesTo === "category" && !productCategory) throw new Error("Inserisci la categoria valida per questo codice.");
+    if (appliesTo === "product" && (!productCategory || !productName)) throw new Error("Inserisci categoria e prodotto specifico per questo codice.");
     const store = loadStore(authDb);
     if (store.codes.some(function (entry) { return entry && !entry.removedAt && entry.codeKey === codeKey; })) {
       throw new Error("Esiste gia un codice sconto con questo nome.");
@@ -123,7 +161,9 @@ function createDiscountCodes(authDb) {
       code,
       codeKey,
       percent,
-      appliesTo: "all_products",
+      appliesTo,
+      productCategory: appliesTo === "all_products" ? null : productCategory,
+      productName: appliesTo === "product" ? productName : null,
       createdAt: now,
       createdBy: admin && admin.id ? admin.id : null,
       createdByEmail: admin && admin.email ? admin.email : null,
@@ -149,11 +189,16 @@ function createDiscountCodes(authDb) {
   function reserveDiscountCode(input, user) {
     const codeKey = normalizeCode(input && input.code);
     const priceLabel = normalizeText(input && input.priceLabel, 80);
+    const productCategory = normalizeText(input && input.productCategory, 120);
+    const productName = normalizeText(input && input.productName, 160);
     if (!codeKey) throw new Error("Inserisci un codice sconto.");
     if (!user || !user.id) throw new Error("Devi effettuare l'accesso.");
     const store = loadStore(authDb);
     const code = store.codes.find(function (entry) { return entry && !entry.removedAt && entry.codeKey === codeKey; });
     if (!code || code.usedAt || code.completedOrderId) throw new Error("Codice sconto non valido o gia utilizzato.");
+    if (!discountAppliesToProduct(code, { productCategory, productName })) {
+      throw new Error("Questo codice sconto non e valido per il prodotto selezionato.");
+    }
     if (code.reservedByUserId && code.reservedByUserId !== user.id) {
       throw new Error("Codice sconto non valido o gia utilizzato.");
     }
@@ -166,7 +211,8 @@ function createDiscountCodes(authDb) {
       code.reservedByEmail = user.email || null;
       code.reservedAt = now;
       code.updatedAt = now;
-      code.appliesTo = "all_products";
+      code.reservedProductCategory = productCategory || null;
+      code.reservedProductName = productName || null;
       saveStore(authDb, store);
     }
     return publicDiscount(code, priceLabel);
@@ -175,9 +221,11 @@ function createDiscountCodes(authDb) {
   function reservedDiscountForUser(input, user) {
     if (!user || !user.id) return null;
     const priceLabel = normalizeText(input && input.priceLabel, 80);
+    const productCategory = normalizeText(input && input.productCategory, 120);
+    const productName = normalizeText(input && input.productName, 160);
     const store = loadStore(authDb);
     const code = store.codes.find(function (entry) {
-      return entry && !entry.removedAt && !entry.usedAt && !entry.completedOrderId && !entry.attachedOrderId && entry.reservedByUserId === user.id;
+      return entry && !entry.removedAt && !entry.usedAt && !entry.completedOrderId && !entry.attachedOrderId && entry.reservedByUserId === user.id && discountAppliesToProduct(entry, { productCategory, productName });
     });
     return code ? publicDiscount(code, priceLabel) : null;
   }
@@ -188,6 +236,7 @@ function createDiscountCodes(authDb) {
     const store = loadStore(authDb);
     const code = findById(store, input.discountCodeId);
     if (!code || code.removedAt || code.usedAt || code.completedOrderId) throw new Error("Codice sconto non valido o gia utilizzato.");
+    if (!discountAppliesToProduct(code, input || {})) throw new Error("Questo codice sconto non e valido per il prodotto selezionato.");
     if (code.reservedByUserId !== user.id) throw new Error("Questo codice sconto e associato a un altro utente.");
     if (code.attachedOrderId) throw new Error("Questo codice sconto e gia associato all'ordine #" + code.attachedOrderId + ". Completa quell'ordine per non perdere lo sconto.");
     return publicDiscount(code, input.priceLabel);
@@ -201,6 +250,8 @@ function createDiscountCodes(authDb) {
     if (!user || code.reservedByUserId !== user.id) return null;
     const now = nowIso();
     code.attachedOrderId = orderId;
+    code.attachedProductCategory = normalizeText(product && product.productCategory, 120) || null;
+    code.attachedProductName = normalizeText(product && product.productName, 160) || null;
     code.attachedAt = now;
     code.updatedAt = now;
     saveStore(authDb, store);

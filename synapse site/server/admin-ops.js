@@ -3,6 +3,8 @@ const contentDefaults = require("./content-defaults");
 
 const CONTENT_KEY = "site_content";
 const STATUS_KEY = "service_status";
+const CONTENT_PATCH_VERSION_KEY = "site_content_patch_version";
+const CONTENT_PATCH_VERSION = 2;
 
 function defaultContent() {
   const { defaultStatus, ...content } = contentDefaults;
@@ -22,6 +24,25 @@ function mergeMissingContentSections(current) {
   return { content: merged, changed };
 }
 
+function applyRequestedContentPatch(authDb, content) {
+  const storedVersion = Number(authDb.getSetting(CONTENT_PATCH_VERSION_KEY) || 0);
+  if (storedVersion >= CONTENT_PATCH_VERSION) return { content, changed: false };
+
+  const defaults = defaultContent();
+  const patched = Object.assign({}, content || {});
+  ["hosting", "fivemScripts", "robloxScripts", "reviews", "promotions"].forEach(function (key) {
+    patched[key] = defaults[key];
+  });
+  authDb.setSetting(CONTENT_PATCH_VERSION_KEY, CONTENT_PATCH_VERSION);
+  return { content: patched, changed: true };
+}
+
+function markUserVerified(authDb, userId) {
+  if (!userId || !authDb || !authDb.db) return;
+  authDb.db.prepare("UPDATE users SET email_verified_at = COALESCE(email_verified_at, @now), updated_at = @now WHERE id = @id")
+    .run({ id: userId, now: authDb.nowIso ? authDb.nowIso() : new Date().toISOString() });
+}
+
 async function seedAdmin(authDb, config) {
   if (!config.adminEmail || !config.adminPassword) {
     return null;
@@ -36,6 +57,7 @@ async function seedAdmin(authDb, config) {
     authDb.updateUserPassword(existing.id, passwordHash);
     if (authDb.setUserStaffRole) authDb.setUserStaffRole(existing.id, "ceo");
     else authDb.setUserAdmin(existing.id, true);
+    markUserVerified(authDb, existing.id);
     return { created: false, userId: existing.id };
   }
 
@@ -47,6 +69,7 @@ async function seedAdmin(authDb, config) {
   });
   if (authDb.setUserStaffRole) authDb.setUserStaffRole(user.id, "ceo");
   else authDb.setUserAdmin(user.id, true);
+  markUserVerified(authDb, user.id);
   return { created: true, userId: user.id };
 }
 
@@ -54,9 +77,11 @@ function seedContent(authDb) {
   const existing = authDb.getSetting(CONTENT_KEY);
   if (!existing) {
     authDb.setSetting(CONTENT_KEY, defaultContent());
+    authDb.setSetting(CONTENT_PATCH_VERSION_KEY, CONTENT_PATCH_VERSION);
   } else {
     const merged = mergeMissingContentSections(existing);
-    if (merged.changed) authDb.setSetting(CONTENT_KEY, merged.content);
+    const patched = applyRequestedContentPatch(authDb, merged.content);
+    if (merged.changed || patched.changed) authDb.setSetting(CONTENT_KEY, patched.content);
   }
   if (!authDb.getSetting(STATUS_KEY)) {
     authDb.setSetting(STATUS_KEY, contentDefaults.defaultStatus);
@@ -67,8 +92,9 @@ function getContent(authDb) {
   const content = authDb.getSetting(CONTENT_KEY);
   if (content) {
     const merged = mergeMissingContentSections(content);
-    if (merged.changed) authDb.setSetting(CONTENT_KEY, merged.content);
-    return merged.content;
+    const patched = applyRequestedContentPatch(authDb, merged.content);
+    if (merged.changed || patched.changed) authDb.setSetting(CONTENT_KEY, patched.content);
+    return patched.content;
   }
   return defaultContent();
 }
@@ -106,4 +132,5 @@ module.exports = {
   saveStatus,
   CONTENT_KEY,
   STATUS_KEY,
+  CONTENT_PATCH_VERSION_KEY,
 };

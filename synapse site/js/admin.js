@@ -26,7 +26,7 @@
   var discountCodesCache = [];
   var discountCodesLoaded = false;
   var discountCodesLoading = false;
-  var activeTab = "hero";
+  var activeTab = "pricingAll";
   var currentStaffRole = "user";
 
   var STAFF_ROLE_LABELS = {
@@ -40,6 +40,7 @@
     hero: "content",
     about: "content",
     bot: "content",
+    pricingAll: "content",
     hosting: "content",
     fivemScripts: "content",
     robloxScripts: "content",
@@ -294,11 +295,13 @@
 
   function tab_hosting() {
     var h = workingContent.hosting = workingContent.hosting || { calloutItems: [], rows: [] };
+    h.rows = h.rows || [];
     var box = el("div");
     box.appendChild(field("Titolo sezione", textInput(h.title, function (v) { h.title = v; })));
-    box.appendChild(field("Callout — titolo", textInput(h.calloutTitle, function (v) { h.calloutTitle = v; })));
+    box.appendChild(field("Intro sezione", textarea(h.intro, function (v) { h.intro = v; })));
+    box.appendChild(field("Callout - titolo", textInput(h.calloutTitle, function (v) { h.calloutTitle = v; })));
     var calloutBox = el("div", { class: "admin-sublist" });
-    calloutBox.appendChild(el("h5", { text: "Callout — voci" }));
+    calloutBox.appendChild(el("h5", { text: "Callout - voci" }));
     (h.calloutItems || []).forEach(function (t, i) {
       var row = el("div", { class: "admin-row" });
       row.appendChild(textInput(t, function (v) { h.calloutItems[i] = v; }));
@@ -308,17 +311,30 @@
     calloutBox.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ voce", onclick: function () { h.calloutItems = h.calloutItems || []; h.calloutItems.push(""); renderActiveTab(); } }));
     box.appendChild(calloutBox);
     box.appendChild(field("Titolo tariffe", textInput(h.tariffsTitle, function (v) { h.tariffsTitle = v; })));
-    var rowsBox = el("div", { class: "admin-sublist" });
-    rowsBox.appendChild(el("h5", { text: "Tariffe" }));
-    (h.rows || []).forEach(function (r, i) {
-      var row = el("div", { class: "admin-row" });
-      row.appendChild(textInput(r.duration, function (v) { r.duration = v; }));
-      row.appendChild(textInput(r.price, function (v) { r.price = v; }));
-      row.appendChild(textInput(r.note, function (v) { r.note = v; }));
-      row.appendChild(el("button", { type: "button", class: "admin-btn-remove", text: "×", onclick: function () { h.rows.splice(i, 1); renderActiveTab(); } }));
-      rowsBox.appendChild(row);
+    var rowsBox = el("div", { class: "admin-sublist admin-hosting-editor" });
+    rowsBox.appendChild(el("h5", { text: "Tariffe divise per tipologia" }));
+    h.rows.forEach(function (r, i) {
+      r.features = r.features || [];
+      var card = el("div", { class: "admin-card-wrap admin-hosting-price-card" });
+      card.appendChild(el("h4", { text: "Hosting " + (i + 1) }));
+      card.appendChild(field("Tipologia", textInput(r.category, function (v) { r.category = v; })));
+      card.appendChild(field("Nome piano", textInput(r.duration, function (v) { r.duration = v; })));
+      card.appendChild(field("Prezzo", textInput(r.price, function (v) { r.price = v; })));
+      card.appendChild(field("Nota", textInput(r.note, function (v) { r.note = v; })));
+      var feats = el("div", { class: "admin-sublist" });
+      feats.appendChild(el("h5", { text: "Feature hosting" }));
+      r.features.forEach(function (f, idx) {
+        var row = el("div", { class: "admin-row" });
+        row.appendChild(textInput(f, function (v) { r.features[idx] = v; }));
+        row.appendChild(el("button", { type: "button", class: "admin-btn-remove", text: "×", onclick: function () { r.features.splice(idx, 1); renderActiveTab(); } }));
+        feats.appendChild(row);
+      });
+      feats.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ feature", onclick: function () { r.features.push("Nuova feature"); renderActiveTab(); } }));
+      card.appendChild(feats);
+      card.appendChild(el("button", { type: "button", class: "admin-btn-remove-card", text: "Rimuovi tariffa", onclick: function () { h.rows.splice(i, 1); renderActiveTab(); } }));
+      rowsBox.appendChild(card);
     });
-    rowsBox.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ tariffa", onclick: function () { h.rows = h.rows || []; h.rows.push({ duration: "", price: "", note: "—" }); renderActiveTab(); } }));
+    rowsBox.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "+ tariffa hosting", onclick: function () { h.rows.push({ category: "Nuova tipologia", duration: "Nuovo piano", price: "Da confermare", note: "", features: ["Feature inclusa"] }); renderActiveTab(); } }));
     box.appendChild(rowsBox);
     return box;
   }
@@ -386,6 +402,27 @@ function tab_fivemScripts() {
 function tab_robloxScripts() {
   return scriptProductsTab("robloxScripts", "Piano Roblox");
 }
+
+  function adminSection(title, renderFn) {
+    var section = el("section", { class: "admin-pricing-section" });
+    section.appendChild(el("h3", { text: title }));
+    section.appendChild(renderFn());
+    return section;
+  }
+
+  function tab_pricingAll() {
+    var box = el("div", { class: "admin-pricing-all" });
+    box.appendChild(el("p", { class: "muted small", text: "Scheda unica per modificare listino, prezzi, pacchetti, hosting, extra e servizi senza passare da più tab." }));
+    box.appendChild(adminSection("Bot Discord + Emoji", tab_bot));
+    box.appendChild(adminSection("Hosting", tab_hosting));
+    box.appendChild(adminSection("Script FiveM", tab_fivemScripts));
+    box.appendChild(adminSection("Script Roblox", tab_robloxScripts));
+    box.appendChild(adminSection("Codice sorgente", tab_code));
+    box.appendChild(adminSection("Loghi", tab_logos));
+    box.appendChild(adminSection("Siti web", tab_websites));
+    box.appendChild(adminSection("Altri servizi", tab_customServices));
+    return box;
+  }
 
   function tab_code() {
     return plansTab("code", function () { return { name: "Nuovo piano", price: "0,00", badge: "", featured: false, features: [{ text: "Voce", excluded: false }] }; }, true);
@@ -1131,12 +1168,19 @@ function tab_robloxScripts() {
   function tab_discountCodes() {
     var box = el("div", { class: "admin-dashboard admin-discount-dashboard" });
     var head = el("div", { class: "admin-page-head" });
-    head.appendChild(el("div", { html: "<h3>Codici Sconto</h3><p class='muted small'>Solo CEO. Ogni codice vale su tutti i prodotti e diventa monouso appena un utente lo applica.</p>" }));
+    head.appendChild(el("div", { html: "<h3>Codici Sconto</h3><p class='muted small'>Solo CEO. I codici possono valere su tutti i prodotti, su una categoria o su un prodotto specifico.</p>" }));
     head.appendChild(el("button", { type: "button", class: "admin-btn-add", text: "Ricarica codici", onclick: function () { loadDiscountCodes(); } }));
     box.appendChild(head);
 
     var codeInput = el("input", { type: "text", maxlength: "80", placeholder: "Esempio: SYNAPSE20" });
     var percentInput = el("input", { type: "number", min: "1", max: "100", step: "0.01", placeholder: "20" });
+    var scopeInput = select("all_products", [
+      { value: "all_products", label: "Tutti i prodotti" },
+      { value: "category", label: "Categoria specifica" },
+      { value: "product", label: "Prodotto specifico" },
+    ], function () {});
+    var categoryInput = el("input", { type: "text", maxlength: "120", placeholder: "Esempio: Script FiveM" });
+    var productInput = el("input", { type: "text", maxlength: "160", placeholder: "Esempio: Script Standard" });
     var createMsg = el("p", { class: "auth-message", "aria-live": "polite", hidden: "" });
     function localMsg(text, type) {
       createMsg.textContent = text || "";
@@ -1147,19 +1191,28 @@ function tab_robloxScripts() {
 
     var form = el("div", { class: "admin-card-wrap admin-discount-form" });
     form.appendChild(el("h4", { text: "Crea nuovo codice" }));
-    form.appendChild(el("p", { class: "muted small", text: "Il codice si applica a qualsiasi prodotto acquistato dall'utente." }));
+    form.appendChild(el("p", { class: "muted small", text: "Per una categoria o un prodotto specifico usa gli stessi nomi visibili nel checkout, per esempio Script FiveM / Script Standard." }));
     form.appendChild(field("Nome codice", codeInput));
     form.appendChild(field("Percentuale sconto", percentInput));
+    form.appendChild(field("Validità", scopeInput));
+    form.appendChild(field("Categoria", categoryInput));
+    form.appendChild(field("Prodotto specifico", productInput));
     form.appendChild(createMsg);
     form.appendChild(el("button", { type: "button", class: "btn btn-primary", text: "Crea codice sconto", onclick: function () {
       localMsg("Creazione codice in corso...", "info");
       createDiscountCode({
         code: codeInput.value,
         percent: percentInput.value,
+        appliesTo: scopeInput.value,
+        productCategory: categoryInput.value,
+        productName: productInput.value,
       }).then(function (r) {
         if (!r.ok || !r.data.ok) throw new Error((r.data && r.data.message) || "Errore");
         codeInput.value = "";
         percentInput.value = "";
+        scopeInput.value = "all_products";
+        categoryInput.value = "";
+        productInput.value = "";
         localMsg("Codice sconto creato.", "success");
         loadDiscountCodes();
       }).catch(function (error) { localMsg(error.message, "error"); });
@@ -1192,7 +1245,7 @@ function tab_robloxScripts() {
         el("strong", { text: code.code }),
         el("span", { text: "-" + code.percent + "%" }),
       ]));
-      card.appendChild(el("p", { class: "admin-ticket-product", text: "Validità: tutti i prodotti" }));
+      card.appendChild(el("p", { class: "admin-ticket-product", text: "Validità: " + (code.scopeLabel || "Tutti i prodotti") }));
       if (code.reservedByEmail) card.appendChild(el("p", { class: "admin-ticket-meta", text: "Associato a: " + code.reservedByEmail + (code.reservedAt ? " · " + new Date(code.reservedAt).toLocaleString() : "") }));
       if (code.attachedOrderId) card.appendChild(el("p", { class: "admin-ticket-meta", text: "Ordine associato: #" + code.attachedOrderId + (code.attachedAt ? " · " + new Date(code.attachedAt).toLocaleString() : "") }));
       if (code.usedAt) card.appendChild(el("p", { class: "admin-ticket-meta", text: "Usato definitivamente: " + new Date(code.usedAt).toLocaleString() }));
@@ -1235,14 +1288,7 @@ function tab_robloxScripts() {
   var TABS = [
     { id: "hero", label: "Hero", render: tab_hero },
     { id: "about", label: "Chi siamo", render: tab_about },
-    { id: "bot", label: "Bot + Emoji", render: tab_bot },
-    { id: "hosting", label: "Hosting", render: tab_hosting },
-    { id: "fivemScripts", label: "Script FiveM", render: tab_fivemScripts },
-    { id: "robloxScripts", label: "Script Roblox", render: tab_robloxScripts },
-    { id: "code", label: "Codice", render: tab_code },
-    { id: "logos", label: "Loghi", render: tab_logos },
-    { id: "websites", label: "Siti web", render: tab_websites },
-    { id: "customServices", label: "Altri servizi", render: tab_customServices },
+    { id: "pricingAll", label: "Listino prezzi", render: tab_pricingAll },
     { id: "notes", label: "Note", render: tab_notes },
     { id: "promotions", label: "Promozioni", render: tab_promotions },
     { id: "tickets", label: "Ticket", render: tab_tickets },
@@ -1361,9 +1407,7 @@ function tab_robloxScripts() {
   if (closeBtn) closeBtn.addEventListener("click", closeModal);
   if (saveBtn) saveBtn.addEventListener("click", saveContent);
 
-  // Mostra/nasconde il bottone Admin in base a user.isAdmin
-  document.addEventListener("synapse:auth-changed", function (ev) {
-    var user = ev.detail && ev.detail.user;
+  function applyAuthUser(user) {
     currentStaffRole = staffRoleFromUser(user);
     if (openBtn) {
       openBtn.hidden = !(user && user.isAdmin);
@@ -1378,7 +1422,16 @@ function tab_robloxScripts() {
       if (currentCan("users")) loadUsers();
       if (currentCan("moderation")) loadIpBans();
     }
+  }
+
+  // Mostra/nasconde il bottone Admin in base a user.isAdmin.
+  document.addEventListener("synapse:auth-changed", function (ev) {
+    applyAuthUser(ev.detail && ev.detail.user);
   });
+
+  if (window.SynapseAuth && window.SynapseAuth.getCurrentUser) {
+    applyAuthUser(window.SynapseAuth.getCurrentUser());
+  }
 
   // Aggiornamenti realtime dei ticket per l'admin
   document.addEventListener("synapse:tickets-changed", function () {

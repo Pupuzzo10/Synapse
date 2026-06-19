@@ -16,6 +16,7 @@ const { createBroadcaster } = require("./events");
 const { createSupport } = require("./support");
 const { createOrders } = require("./orders");
 const { createDiscountCodes } = require("./discount-codes");
+const { createReviews } = require("./reviews");
 const { lookupSecurityReport } = require("./security-reports");
 
 const STAFF_ROLE_LABELS = {
@@ -478,19 +479,16 @@ function createApp(overrides = {}) {
         registerIp: req.clientIp,
       });
 
-      // Invio email di verifica in background, non blocca la registrazione.
-      sendVerificationEmailSafe(user);
-
-      // Auto-login: ruoto la sessione e associo l'utente.
-      const session = req.rotateSession(user.id);
-      const freshUser = authDb.findUserById(user.id);
+      await sendVerificationEmailSafe(user);
+      const session = req.destroySession ? req.destroySession() : req.authSession;
 
       return res.status(201).json({
         ok: true,
-        message: "Account creato. Benvenuto, " + freshUser.username + "!",
-        sessionId: session.id,
-        csrfToken: session.csrfToken,
-        user: serializeUser(freshUser),
+        requiresEmailVerification: true,
+        message: "Account creato. Controlla la tua email e conferma l'indirizzo prima di accedere.",
+        sessionId: session && session.id,
+        csrfToken: session && session.csrfToken,
+        user: null,
       });
     } catch (error) {
       if (error && error.code === "SQLITE_CONSTRAINT_UNIQUE") {
@@ -537,6 +535,13 @@ function createApp(overrides = {}) {
         const block = blockInfoFromUser(user);
         return res.status(403).json({ ok: false, blocked: true, block, message: block.message });
       }
+      if (!user.email_verified_at && !isStaffUser(user)) {
+        return res.status(403).json({
+          ok: false,
+          requiresEmailVerification: true,
+          message: "Devi confermare l'email prima di accedere. Controlla la posta in arrivo e la cartella spam.",
+        });
+      }
 
       const session = req.rotateSession(user.id);
       const freshUser = authDb.findUserById(user.id);
@@ -570,6 +575,18 @@ function createApp(overrides = {}) {
   const support = createSupport(authDb);
   const orders = createOrders(authDb);
   const discountCodes = createDiscountCodes(authDb);
+  const reviews = createReviews(authDb);
+
+  function publicContent() {
+    const content = adminOps.getContent(authDb);
+    const realReviews = reviews.listPublicReviews();
+    const existingReviews = content.reviews || {};
+    return Object.assign({}, content, {
+      reviews: Object.assign({}, existingReviews, {
+        items: (Array.isArray(existingReviews.items) ? existingReviews.items : []).concat(realReviews),
+      }),
+    });
+  }
 
   app.get("/api/events", function (req, res) {
     const accountBlock = blockInfoFromUser(req.sessionUser);
@@ -655,6 +672,9 @@ function createApp(overrides = {}) {
     if (!user) return res.status(401).json({ ok: false, message: "Sessione non valida." });
     const block = blockInfoFromUser(user);
     if (block) return res.status(403).json({ ok: false, blocked: true, block, message: block.message });
+    if (!user.email_verified_at && !isStaffUser(user)) {
+      return res.status(403).json({ ok: false, requiresEmailVerification: true, message: "Conferma la tua email prima di continuare." });
+    }
     req.currentUser = user;
     next();
   }
@@ -697,7 +717,7 @@ function createApp(overrides = {}) {
   }
 
   app.get("/api/content", function (req, res) {
-    res.json({ ok: true, content: adminOps.getContent(authDb) });
+    res.json({ ok: true, content: publicContent() });
   });
 
   app.put("/api/content", requireCsrf, requireStaffCapability("content"), function (req, res) {
@@ -706,8 +726,12 @@ function createApp(overrides = {}) {
       return res.status(400).json({ ok: false, message: "Payload contenuto non valido." });
     }
     try {
-      adminOps.saveContent(authDb, body.content);
-      const next = adminOps.getContent(authDb);
+      const contentToSave = JSON.parse(JSON.stringify(body.content));
+      if (contentToSave.reviews && Array.isArray(contentToSave.reviews.items)) {
+        contentToSave.reviews.items = contentToSave.reviews.items.filter(function (item) { return !(item && item.verifiedOrder); });
+      }
+      adminOps.saveContent(authDb, contentToSave);
+      const next = publicContent();
       broadcaster.broadcast("content", next);
       return res.json({ ok: true, content: next });
     } catch (error) {
@@ -777,6 +801,8 @@ function createApp(overrides = {}) {
 
   app.get("/api/discount-codes/reserved", requireAuth, function (req, res) {
     const discount = discountCodes.reservedDiscountForUser({
+      productCategory: req.query.productCategory,
+      productName: req.query.productName,
       priceLabel: req.query.priceLabel,
     }, req.currentUser);
     res.json({ ok: true, discount });
@@ -855,6 +881,25 @@ function createApp(overrides = {}) {
 
   app.get("/api/orders", requireStaffCapability("orders"), function (req, res) {
     res.json({ ok: true, orders: orders.listAllOrders() });
+  });
+
+  app.get("/api/reviews/pending", requireAuth, function (req, res) {
+    const order = reviews.pendingReviewForUser(orders.listMyOrders(req.currentUser.id));
+    res.json({ ok: true, order });
+  });
+
+  app.post("/api/reviews", requireCsrf, requireAuth, function (req, res) {
+    try {
+      const orderId = parseInt(req.body && req.body.orderId, 10);
+      const order = orders.getOrder(orderId);
+      if (!order) return res.status(404).json({ ok: false, message: "Ordine inesistente." });
+      const review = reviews.createReview(order, req.body || {}, req.currentUser);
+      const nextContent = publicContent();
+      broadcaster.broadcast("content", nextContent);
+      res.status(201).json({ ok: true, review });
+    } catch (error) {
+      res.status(400).json({ ok: false, message: error.message || "Recensione non valida." });
+    }
   });
 
   app.post("/api/orders/:id/confirm-payment", requireCsrf, requireAuth, function (req, res) {

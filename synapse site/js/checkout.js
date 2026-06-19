@@ -196,7 +196,7 @@
     row.appendChild(input);
     row.appendChild(applyBtn);
     wrap.appendChild(row);
-    wrap.appendChild(el("p", { class: "checkout-discount-hint", text: currentDiscount ? "Lo sconto è riservato al tuo account, vale su tutti i prodotti e non può più essere usato da altri." : "Il codice vale su tutti i prodotti e diventa monouso appena viene applicato al tuo account." }));
+    wrap.appendChild(el("p", { class: "checkout-discount-hint", text: currentDiscount ? "Lo sconto è riservato al tuo account e segue la validità configurata dall'admin: " + (currentDiscount.scopeLabel || "Tutti i prodotti") + "." : "Il codice può valere su tutti i prodotti, su una categoria o su un prodotto specifico, in base alla configurazione admin." }));
     return wrap;
   }
 
@@ -445,12 +445,109 @@
     }).catch(function () {});
   }
 
+  var reviewModal = null;
+  var reviewOrder = null;
+
+  function ensureReviewModal() {
+    if (reviewModal) return;
+    reviewModal = el("div", { id: "review-modal", class: "modal checkout-modal review-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "review-modal-title", hidden: "" });
+    var dialog = el("div", { class: "modal-dialog checkout-dialog review-dialog" });
+    var header = el("header", { class: "modal-header" });
+    header.appendChild(el("h2", { id: "review-modal-title", class: "modal-title", text: "Lascia una recensione" }));
+    header.appendChild(el("button", { type: "button", class: "modal-close checkout-modal-close", "aria-label": "Chiudi", text: "×", onclick: closeReviewModal }));
+    dialog.appendChild(header);
+    dialog.appendChild(el("div", { class: "modal-body review-body" }));
+    reviewModal.appendChild(dialog);
+    document.body.appendChild(reviewModal);
+  }
+
+  function closeReviewModal() {
+    if (!reviewModal) return;
+    reviewModal.setAttribute("hidden", "");
+    document.body.style.overflow = "";
+  }
+
+  function openReviewForOrder(order) {
+    if (!order || !currentUser) return;
+    reviewOrder = order;
+    ensureReviewModal();
+    var body = reviewModal.querySelector(".review-body");
+    clear(body);
+    var feedback = el("p", { class: "auth-message", "aria-live": "polite", hidden: "" });
+    var form = el("form", { class: "auth-form review-form", novalidate: "" });
+    var nameInput = el("input", { type: "text", maxlength: "80", required: "", autocomplete: "name", value: currentUser.username || "" });
+    var discordInput = el("input", { type: "text", maxlength: "80", autocomplete: "off", placeholder: "Facoltativo" });
+    var ratingInput = el("select", { required: "" }, [
+      el("option", { value: "5", text: "5 stelle" }),
+      el("option", { value: "4", text: "4 stelle" }),
+      el("option", { value: "3", text: "3 stelle" }),
+      el("option", { value: "2", text: "2 stelle" }),
+      el("option", { value: "1", text: "1 stella" }),
+    ]);
+    var textInputReview = el("textarea", { rows: "6", maxlength: "700", required: "", placeholder: "Descrivi la tua esperienza con Synapse." });
+    var submit = el("button", { type: "submit", class: "btn btn-primary checkout-wide", text: "Invia recensione" });
+    form.appendChild(el("div", { class: "checkout-success review-invite" }, [
+      el("span", { class: "checkout-success-icon", text: "★" }),
+      el("strong", { text: "Ordine completato" }),
+      el("p", { text: "Lo staff ha confermato l'ordine " + (order.productName || "Synapse") + ". Puoi pubblicare una recensione verificata." }),
+    ]));
+    form.appendChild(field("Nome da mostrare", nameInput));
+    form.appendChild(field("Discord", discordInput, "Facoltativo, non viene mostrato pubblicamente se lasci vuoto."));
+    form.appendChild(field("Valutazione", ratingInput));
+    form.appendChild(field("Descrizione", textInputReview));
+    form.appendChild(feedback);
+    form.appendChild(submit);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      submit.disabled = true;
+      setMessage(feedback, "Invio recensione in corso...", "info");
+      fetchJson("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: reviewOrder.id,
+          displayName: nameInput.value,
+          discordName: discordInput.value,
+          rating: ratingInput.value,
+          text: textInputReview.value,
+        }),
+      }).then(function () {
+        setMessage(feedback, "Recensione inviata e pubblicata.", "success");
+        setTimeout(closeReviewModal, 900);
+        if (window.SynapseContent && window.SynapseContent.reload) window.SynapseContent.reload();
+      }).catch(function (error) {
+        submit.disabled = false;
+        setMessage(feedback, error.message, "error");
+      });
+    });
+    body.appendChild(form);
+    reviewModal.removeAttribute("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function checkPendingReview() {
+    if (!currentUser) return;
+    fetchJson("/api/reviews/pending", { method: "GET" }).then(function (data) {
+      if (data.order && !(reviewModal && !reviewModal.hasAttribute("hidden"))) openReviewForOrder(data.order);
+    }).catch(function () {});
+  }
+
   document.addEventListener("synapse:open-checkout", function (event) { openFor(event.detail || {}); });
   document.addEventListener("synapse:auth-changed", function (event) {
     currentUser = event.detail && event.detail.user ? event.detail.user : null;
     if (modal && !modal.hasAttribute("hidden")) render();
-    if (currentUser) resumeRequiredDetails();
+    if (currentUser) { resumeRequiredDetails(); setTimeout(checkPendingReview, 700); }
+  });
+  document.addEventListener("synapse:orders-changed", function (event) {
+    var order = event.detail && event.detail.order;
+    if (!currentUser || !order || order.userId !== currentUser.id || order.status !== "completed") return;
+    setTimeout(checkPendingReview, 700);
   });
 
-  window.SynapseCheckout = { openFor: openFor };
+  if (window.SynapseAuth && window.SynapseAuth.getCurrentUser) {
+    currentUser = window.SynapseAuth.getCurrentUser();
+    if (currentUser) { resumeRequiredDetails(); setTimeout(checkPendingReview, 1200); }
+  }
+
+  window.SynapseCheckout = { openFor: openFor, checkPendingReview: checkPendingReview };
 })();

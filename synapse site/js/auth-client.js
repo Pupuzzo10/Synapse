@@ -30,6 +30,7 @@
   var logoutBtn = document.getElementById("auth-logout");
   var adminBtn = document.getElementById("open-admin");
   var authBanner = document.getElementById("auth-feedback");
+  var currentUser = null;
   var lastFocus = null;
   var appBaseUrl = resolveAppBaseUrl();
 
@@ -126,6 +127,7 @@
   }
 
   function updateNav(user) {
+    currentUser = user || null;
     if (openBtn && navUserWrap && navUserLabel) {
       if (user) {
         openBtn.hidden = true;
@@ -156,6 +158,7 @@
   window.SynapseAuth = {
     getCsrfToken: function () { return csrfToken; },
     getSessionId: function () { return sessionId; },
+    getCurrentUser: function () { return currentUser; },
     headers: authHeaders,
     // fetch helper che aggiunge automaticamente i header di sessione/CSRF
     fetch: function (path, options) {
