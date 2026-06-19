@@ -1428,6 +1428,15 @@ function createApp(overrides = {}) {
     const result = authDb.consumeEmailVerificationToken(hashVerificationToken(token));
 
     if (result.status === "verified") {
+      const verifiedUser = result.user ? authDb.findUserById(result.user.id) : null;
+      if (verifiedUser && !isBlockedUser(verifiedUser)) {
+        const session = req.rotateSession(verifiedUser.id);
+        if (req.clientIp && authDb.updateUserIp) authDb.updateUserIp(verifiedUser.id, req.clientIp);
+        const hash = "#verifiedSession=" + encodeURIComponent(session.id) +
+          "&verifiedCsrf=" + encodeURIComponent(session.csrfToken);
+        return res.redirect("/?verified=success&autoLogin=1" + hash);
+      }
+
       return res.redirect("/?verified=success");
     }
 

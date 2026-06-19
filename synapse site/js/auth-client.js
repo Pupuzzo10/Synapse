@@ -350,16 +350,42 @@
     return data;
   }
 
-  function handleVerificationFeedback() {
+  async function handleVerificationFeedback() {
     var params = new URLSearchParams(window.location.search);
     var verified = params.get("verified");
 
     if (!verified) return;
 
+    var hashParams = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+    var verifiedSession = hashParams.get("verifiedSession");
+    var verifiedCsrf = hashParams.get("verifiedCsrf");
+    var shouldAutoLogin = verified === "success" && verifiedSession && verifiedCsrf;
+
     var message = "";
     var type = "info";
 
-    if (verified === "success") {
+    params.delete("verified");
+    params.delete("autoLogin");
+    var nextUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+    window.history.replaceState({}, document.title, nextUrl);
+
+    if (shouldAutoLogin) {
+      updateSessionFromPayload({ sessionId: verifiedSession, csrfToken: verifiedCsrf });
+      try {
+        var refreshed = await refreshSession();
+        if (refreshed && refreshed.authenticated) {
+          message = "Email confermata con successo. Accesso effettuato automaticamente.";
+          type = "success";
+          closeModal();
+        } else {
+          message = "Email confermata con successo. Aggiorna la pagina se non vedi subito il tuo account.";
+          type = "success";
+        }
+      } catch (_error) {
+        message = "Email confermata con successo. Aggiorna la pagina se non vedi subito il tuo account.";
+        type = "success";
+      }
+    } else if (verified === "success") {
       message = "Email confermata con successo. Ora puoi accedere.";
       type = "success";
       switchTab("login");
@@ -374,9 +400,6 @@
     }
 
     setMessage(authBanner, message, type);
-    params.delete("verified");
-    var nextUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "") + window.location.hash;
-    window.history.replaceState({}, document.title, nextUrl);
   }
 
   if (openBtn) openBtn.addEventListener("click", openModal);
@@ -538,9 +561,9 @@
   }
 
   (sessionId ? refreshSession().then(refreshCsrfToken) : refreshCsrfToken().then(refreshSession))
-    .then(function () {
+    .then(async function () {
       clearMessages();
-      handleVerificationFeedback();
+      await handleVerificationFeedback();
     })
     .catch(function (error) {
       console.error("[auth] Bootstrap non riuscito:", error);
