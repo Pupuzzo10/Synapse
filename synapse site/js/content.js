@@ -417,6 +417,26 @@ function renderScriptCard(plan, categoryLabel, iconSrc, iconAlt, extraIconClass)
   return card;
 }
 
+function normalizeScriptCopyTitle(value) {
+  var text = String(value || "").trim();
+  if (!text || text === "Testo pronto da mettere sul sito") return "Altro";
+  return text;
+}
+
+function normalizeScriptCopyBody(value, categoryLabel) {
+  var text = String(value || "").trim();
+  if (!text && categoryLabel === "Script FiveM") return "Realizzo script FiveM personalizzati di qualsiasi livello. Il prezzo varia in base alla complessità del progetto.";
+  if (!text && categoryLabel === "Script Roblox") return "Realizzo script Roblox personalizzati di qualsiasi livello. Il prezzo varia in base alla complessità del progetto.";
+  if (!text) return "";
+  if (text.indexOf("Realizzo script FiveM personalizzati") === 0 && text.indexOf("Script base 10€") !== -1) {
+    return "Realizzo script FiveM personalizzati di qualsiasi livello. Il prezzo varia in base alla complessità del progetto.";
+  }
+  if (text.indexOf("Realizzo script Roblox personalizzati") === 0 && text.indexOf("Script base 5€") !== -1) {
+    return "Realizzo script Roblox personalizzati di qualsiasi livello. Il prezzo varia in base alla complessità del progetto.";
+  }
+  return text;
+}
+
 function renderScriptSection(data, cfg) {
   data = data || {};
   cfg = cfg || {};
@@ -448,8 +468,8 @@ function renderScriptSection(data, cfg) {
       extrasBody.appendChild(tr);
     });
   }
-  if (copyTitle) copyTitle.textContent = data.copyTitle || "Testo pronto da mettere sul sito";
-  if (copyBody) copyBody.textContent = data.copyBody || "";
+  if (copyTitle) copyTitle.textContent = normalizeScriptCopyTitle(data.copyTitle);
+  if (copyBody) copyBody.textContent = normalizeScriptCopyBody(data.copyBody, cfg.categoryLabel);
   if (copyFooter) copyFooter.textContent = data.copyFooter || "";
 }
 

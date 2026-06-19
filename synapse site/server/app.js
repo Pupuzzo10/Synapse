@@ -301,6 +301,12 @@ function createApp(overrides = {}) {
     message: "Troppi tentativi di accesso. Riprova tra qualche minuto.",
   });
 
+  const verificationEmailLimiter = buildRateLimiter({
+    windowMs: 10 * 60 * 1000,
+    limit: 3,
+    message: "Troppe email di verifica richieste. Riprova tra qualche minuto.",
+  });
+
   const ticketLimiter = buildRateLimiter({
     windowMs: 10 * 60 * 1000,
     limit: 8,
@@ -434,10 +440,24 @@ function createApp(overrides = {}) {
       });
       const verificationUrl =
         config.baseUrl + "/verify-email?token=" + encodeURIComponent(rawToken);
-      await deliverVerificationEmail(user, verificationUrl);
+      const delivery = await deliverVerificationEmail(user, verificationUrl);
+      return { ok: true, delivery };
     } catch (error) {
-      console.warn("[auth] Invio email di verifica non riuscito (non bloccante):", error.message);
+      console.warn("[auth] Invio email di verifica non riuscito:", error.message);
+      return { ok: false, error };
     }
+  }
+
+  function verificationEmailMessage(result) {
+    if (result && result.ok && result.delivery && result.delivery.simulated) {
+      return "Account creato, ma l'email e in modalita sviluppo: il link di conferma viene scritto nei log Render. Configura SMTP per inviarla davvero.";
+    }
+
+    if (result && result.ok) {
+      return "Account creato. Controlla la tua email e conferma l'indirizzo prima di accedere.";
+    }
+
+    return "Account creato, ma l'email di conferma non e partita. Controlla SMTP su Render e poi usa Rinvia email di conferma.";
   }
 
   app.post("/api/auth/register", registerLimiter, requireCsrf, async function (req, res, next) {
@@ -479,13 +499,18 @@ function createApp(overrides = {}) {
         registerIp: req.clientIp,
       });
 
-      await sendVerificationEmailSafe(user);
+      const emailResult = await sendVerificationEmailSafe(user);
       const session = req.destroySession ? req.destroySession() : req.authSession;
 
       return res.status(201).json({
         ok: true,
         requiresEmailVerification: true,
-        message: "Account creato. Controlla la tua email e conferma l'indirizzo prima di accedere.",
+        emailDelivery: {
+          ok: !!(emailResult && emailResult.ok),
+          simulated: !!(emailResult && emailResult.delivery && emailResult.delivery.simulated),
+          mode: emailResult && emailResult.delivery ? emailResult.delivery.mode : (mailer.mode || "unknown"),
+        },
+        message: verificationEmailMessage(emailResult),
         sessionId: session && session.id,
         csrfToken: session && session.csrfToken,
         user: null,
@@ -498,6 +523,44 @@ function createApp(overrides = {}) {
         });
       }
 
+      return next(error);
+    }
+  });
+
+  app.post("/api/auth/resend-verification", verificationEmailLimiter, requireCsrf, async function (req, res, next) {
+    const email = String(req.body && req.body.email ? req.body.email : "").trim().toLowerCase();
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ ok: false, message: "Inserisci un indirizzo email valido." });
+    }
+
+    try {
+      const user = authDb.findUserByEmail(email);
+      if (!user) {
+        return res.json({ ok: true, message: "Se l'account esiste, riceverai una nuova email di conferma." });
+      }
+
+      if (user.email_verified_at) {
+        return res.json({ ok: true, message: "Questa email risulta gia confermata. Puoi accedere normalmente." });
+      }
+
+      const emailResult = await sendVerificationEmailSafe(user);
+      if (!emailResult.ok) {
+        return res.status(502).json({
+          ok: false,
+          message: "Email non inviata. Controlla SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER e SMTP_PASS su Render, poi riprova.",
+        });
+      }
+
+      if (emailResult.delivery && emailResult.delivery.simulated) {
+        return res.status(202).json({
+          ok: true,
+          simulated: true,
+          message: "Email in modalita sviluppo: il link di conferma e nei log Render. Configura SMTP per inviarla davvero.",
+        });
+      }
+
+      return res.json({ ok: true, message: "Email di conferma reinviata. Controlla anche spam, promozioni e posta indesiderata." });
+    } catch (error) {
       return next(error);
     }
   });
@@ -539,7 +602,7 @@ function createApp(overrides = {}) {
         return res.status(403).json({
           ok: false,
           requiresEmailVerification: true,
-          message: "Devi confermare l'email prima di accedere. Controlla la posta in arrivo e la cartella spam.",
+          message: "Devi confermare l'email prima di accedere. Controlla posta in arrivo, spam e promozioni oppure usa Rinvia email di conferma.",
         });
       }
 

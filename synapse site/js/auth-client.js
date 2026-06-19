@@ -30,6 +30,7 @@
   var logoutBtn = document.getElementById("auth-logout");
   var adminBtn = document.getElementById("open-admin");
   var authBanner = document.getElementById("auth-feedback");
+  var resendVerificationBtn = document.getElementById("resend-verification-email");
   var currentUser = null;
   var lastFocus = null;
   var appBaseUrl = resolveAppBaseUrl();
@@ -115,10 +116,27 @@
 
   window.SynapseBlocked = window.SynapseBlocked || { render: renderBlockedScreen };
 
+  function hideResendVerification() {
+    if (!resendVerificationBtn) return;
+    resendVerificationBtn.hidden = true;
+    resendVerificationBtn.disabled = false;
+    resendVerificationBtn.removeAttribute("data-email");
+    resendVerificationBtn.textContent = "Rinvia email di conferma";
+  }
+
+  function showResendVerification(email) {
+    if (!resendVerificationBtn) return;
+    resendVerificationBtn.hidden = false;
+    resendVerificationBtn.disabled = false;
+    resendVerificationBtn.setAttribute("data-email", email || "");
+    resendVerificationBtn.textContent = "Rinvia email di conferma";
+  }
+
   function clearMessages() {
     setMessage(document.getElementById("auth-message-login"), "");
     setMessage(document.getElementById("auth-message-register"), "");
     setMessage(authBanner, "");
+    hideResendVerification();
   }
 
   function staffRoleLabel(user) {
@@ -195,6 +213,7 @@
     tabRegister.setAttribute("aria-selected", !isLogin ? "true" : "false");
     setMessage(document.getElementById("auth-message-login"), "");
     setMessage(document.getElementById("auth-message-register"), "");
+    hideResendVerification();
   }
 
   function setSubmitting(form, isSubmitting) {
@@ -392,6 +411,11 @@
         setMessage(authBanner, payload.message, "success");
       } catch (error) {
         setMessage(messageEl, error.message, "error");
+        if (error && error.payload && error.payload.requiresEmailVerification) {
+          showResendVerification(formLogin.querySelector('[name="email"]').value.trim());
+        } else {
+          hideResendVerification();
+        }
       } finally {
         setSubmitting(formLogin, false);
       }
@@ -431,11 +455,41 @@
         updateNav(payload.user || null);
         formRegister.reset();
         closeModal();
-        setMessage(authBanner, payload.message, "success");
+        var registerMessageType = payload.emailDelivery && !payload.emailDelivery.ok ? "error" : payload.emailDelivery && payload.emailDelivery.simulated ? "info" : "success";
+        setMessage(authBanner, payload.message, registerMessageType);
       } catch (error) {
         setMessage(messageEl, error.message, "error");
       } finally {
         setSubmitting(formRegister, false);
+      }
+    });
+  }
+
+  if (resendVerificationBtn) {
+    resendVerificationBtn.addEventListener("click", async function () {
+      var messageEl = document.getElementById("auth-message-login");
+      var email = resendVerificationBtn.getAttribute("data-email") || (formLogin && formLogin.querySelector('[name="email"]') ? formLogin.querySelector('[name="email"]').value.trim() : "");
+      if (!email) {
+        setMessage(messageEl, "Inserisci l'email dell'account e riprova.", "error");
+        return;
+      }
+
+      resendVerificationBtn.disabled = true;
+      resendVerificationBtn.textContent = "Invio in corso...";
+
+      try {
+        await ensureAuthReady("il reinvio dell'email di conferma");
+        var payload = await fetchJson("/api/auth/resend-verification", {
+          method: "POST",
+          failureMessage: "Impossibile reinviare l'email di conferma. Verifica che il server sia attivo.",
+          body: JSON.stringify({ email: email }),
+        });
+        setMessage(messageEl, payload.message || "Email di conferma reinviata.", payload.simulated ? "info" : "success");
+      } catch (error) {
+        setMessage(messageEl, error.message, "error");
+      } finally {
+        resendVerificationBtn.disabled = false;
+        resendVerificationBtn.textContent = "Rinvia email di conferma";
       }
     });
   }

@@ -250,8 +250,8 @@ module.exports = {
       { name: "Supporto 7 giorni", price: "+15€", note: "Assistenza dedicata post-consegna." },
       { name: "Esclusività", price: "+50% / +100%", note: "Script venduto solo a te, non rivendibile ad altri." },
     ],
-    copyTitle: "Testo pronto da mettere sul sito",
-    copyBody: "Realizzo script FiveM personalizzati di qualsiasi livello. Il prezzo varia in base alla complessità del progetto: Script base 10€–20€, script standard 30€–60€, script complessi 70€–130€, script premium su misura 150€–300€+. Possibilità di installazione, ottimizzazione e supporto dedicato.",
+    copyTitle: "Altro",
+    copyBody: "Realizzo script FiveM personalizzati di qualsiasi livello. Il prezzo varia in base alla complessità del progetto.",
     copyFooter: "Ogni script può essere reso esclusivo su richiesta.",
   },
   robloxScripts: {
@@ -333,8 +333,8 @@ module.exports = {
       { name: "Supporto 7 giorni", price: "+15€", note: "Assistenza dedicata post-consegna." },
       { name: "Esclusività totale", price: "+50% / +100%", note: "Script esclusivo, non rivendibile ad altri." },
     ],
-    copyTitle: "Testo pronto da mettere sul sito",
-    copyBody: "Realizzo script Roblox personalizzati in Lua, ottimizzati e sicuri. Il prezzo varia in base alla complessità del progetto: Script base 5€–25€, script standard 20€–40€, script complessi 50€–90€, script premium su misura 100€–200€+. Possibilità di UI personalizzate, datastore, sistemi multiplayer, anti-exploit e supporto dedicato.",
+    copyTitle: "Altro",
+    copyBody: "Realizzo script Roblox personalizzati di qualsiasi livello. Il prezzo varia in base alla complessità del progetto.",
     copyFooter: "Ogni script può essere reso esclusivo su richiesta.",
   },
   code: {

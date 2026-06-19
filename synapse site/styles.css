@@ -4330,3 +4330,59 @@ main {
     padding: 1.1rem 1rem;
   }
 }
+
+/* Patch recensioni: blocca lo scorrimento automatico e rende le card sempre visibili. */
+.reviews-section {
+  overflow: visible !important;
+}
+
+.reviews-marquee {
+  overflow: visible !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+}
+
+.reviews-track {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 1rem;
+  width: 100% !important;
+  max-width: 100%;
+  animation: none !important;
+  transform: none !important;
+}
+
+.reviews-marquee:hover .reviews-track {
+  animation: none !important;
+  transform: none !important;
+}
+
+.review-card {
+  width: 100% !important;
+  min-width: 0;
+}
+
+.auth-resend-btn {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  font: inherit;
+  font-weight: 800;
+  padding: .72rem 1rem;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.auth-resend-btn:hover,
+.auth-resend-btn:focus-visible {
+  border-color: rgba(255,255,255,0.32);
+  background: rgba(255,255,255,0.1);
+  transform: translateY(-1px);
+}
+
+.auth-resend-btn[disabled] {
+  cursor: progress;
+  opacity: .7;
+  transform: none;
+}
