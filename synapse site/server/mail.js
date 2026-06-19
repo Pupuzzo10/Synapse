@@ -1,4 +1,6 @@
 const dns = require("node:dns");
+const net = require("node:net");
+const tls = require("node:tls");
 const nodemailer = require("nodemailer");
 
 try {
@@ -21,6 +23,103 @@ function isTruthyEnv(value, fallback) {
 
 function normalizeAppPassword(value) {
   return String(value || "").replace(/\s+/g, "");
+}
+
+function resolve4(host, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    if (!host) {
+      reject(new Error("SMTP_HOST mancante."));
+      return;
+    }
+
+    if (net.isIPv4(host)) {
+      resolve(host);
+      return;
+    }
+
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`Timeout DNS IPv4 per ${host}`));
+    }, timeoutMs);
+
+    try {
+      timer.unref?.();
+    } catch (_error) {
+      // Ignore runtimes without unref.
+    }
+
+    dns.resolve4(host, (error, addresses) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      const address = Array.isArray(addresses) ? addresses.find(net.isIPv4) : null;
+      if (!address) {
+        reject(new Error(`Nessun indirizzo IPv4 trovato per ${host}`));
+        return;
+      }
+
+      resolve(address);
+    });
+  });
+}
+
+function createForcedIpv4SocketFactory(config, timeoutMs) {
+  return async function getSocket(_options, callback) {
+    try {
+      const address = await resolve4(config.smtp.host, timeoutMs);
+      const socketOptions = {
+        host: address,
+        port: config.smtp.port,
+        family: 4,
+        timeout: timeoutMs,
+      };
+
+      if (config.smtp.secure) {
+        socketOptions.servername = config.smtp.host;
+      }
+
+      const socket = config.smtp.secure
+        ? tls.connect(socketOptions)
+        : net.connect(socketOptions);
+
+      let returned = false;
+
+      const done = (error, result) => {
+        if (returned) return;
+        returned = true;
+        callback(error, result);
+      };
+
+      socket.once("connect", () => {
+        console.log(`[auth][email] Connessione SMTP IPv4: ${config.smtp.host} -> ${address}:${config.smtp.port}`);
+        done(null, {
+          connection: socket,
+          secured: Boolean(config.smtp.secure),
+        });
+      });
+
+      socket.once("timeout", () => {
+        socket.destroy();
+        const error = new Error("Timeout socket SMTP IPv4");
+        error.code = "ETIMEDOUT";
+        done(error);
+      });
+
+      socket.once("error", (error) => {
+        done(error);
+      });
+    } catch (error) {
+      callback(error);
+    }
+  };
 }
 
 function createMailer(config, overrides = {}) {
@@ -51,17 +150,17 @@ function createMailer(config, overrides = {}) {
 
   if (config.smtp.host && config.smtp.user && config.smtp.pass) {
     mode = "smtp";
-    const smtpTimeoutMs = parseIntOr(process.env.SMTP_TIMEOUT_MS, 10000);
+    const smtpTimeoutMs = parseIntOr(process.env.SMTP_TIMEOUT_MS, 15000);
     const forceIpv4 = isTruthyEnv(process.env.SMTP_FORCE_IPV4, true);
     transporter = nodemailer.createTransport({
       host: config.smtp.host,
       port: config.smtp.port,
       secure: config.smtp.secure,
-      family: forceIpv4 ? 4 : undefined,
       dnsTimeout: smtpTimeoutMs,
       connectionTimeout: smtpTimeoutMs,
       greetingTimeout: smtpTimeoutMs,
       socketTimeout: smtpTimeoutMs + 5000,
+      getSocket: forceIpv4 ? createForcedIpv4SocketFactory(config, smtpTimeoutMs) : undefined,
       auth: {
         user: String(config.smtp.user || "").trim(),
         pass: normalizeAppPassword(config.smtp.pass),
