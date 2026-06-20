@@ -141,18 +141,22 @@ function sortRoles(a, b) {
 }
 
 function sanitizeNext(value) {
-  const text = String(value || "/bot-config").trim();
-  if (!text || text === "/!" || text === "/!/" || text === "!") return "/bot-config";
+  const text = String(value || "/bot-config");
   if (!text.startsWith("/")) return "/bot-config";
   if (text.startsWith("//")) return "/bot-config";
-  if (text.startsWith("/api/")) return "/bot-config";
-  if (text.startsWith("/security")) return "/bot-config";
   return text.slice(0, 300);
 }
 
 function createBotConfigPanel({ config }) {
   const router = express.Router();
   const secret = config.securityDashboardSecret || process.env.SECURITY_DASHBOARD_SECRET || "synapsehub-security-dev-secret";
+
+  function noStore(res) {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+    res.set("Surrogate-Control", "no-store");
+  }
 
   function readSession(req) {
     const raw = req.cookies && req.cookies[COOKIE_NAME];
@@ -206,24 +210,6 @@ function createBotConfigPanel({ config }) {
     if (!configuredRoles.length) return false;
     const memberRoles = await fetchBotMemberRoles(botToken, guildId, session.user.id);
     return configuredRoles.some(function (roleId) { return memberRoles.indexOf(String(roleId)) !== -1; });
-  }
-
-  async function requireManageGuild(req, res, guildId) {
-    try {
-      const allowed = await canManageGuild(req.discordSession, guildId);
-      if (!allowed) {
-        res.status(403).json({ ok: false, message: "Non puoi gestire questo server oppure il bot non riesce a verificare i tuoi ruoli." });
-        return false;
-      }
-      return true;
-    } catch (error) {
-      const status = error && error.status ? error.status : 502;
-      const message = status === 401
-        ? "Sessione Discord non valida o scaduta. Esci dal pannello e accedi di nuovo."
-        : (error && error.message ? error.message : "Impossibile verificare i permessi Discord per questo server.");
-      res.status(status).json({ ok: false, message });
-      return false;
-    }
   }
 
   router.get("/login", function (req, res) {
@@ -295,6 +281,7 @@ function createBotConfigPanel({ config }) {
   });
 
   router.get("/sync", function (req, res) {
+    noStore(res);
     const provided = String(req.get("x-synapse-dashboard-secret") || req.query.secret || "").trim();
     if (!provided || !safeCompare(provided, secret)) {
       return res.status(403).json({ ok: false, message: "Accesso sync non autorizzato." });
@@ -343,7 +330,7 @@ function createBotConfigPanel({ config }) {
     const guildId = String(req.params.guildId || "");
     const { botToken } = clientConfig(config);
     if (!botToken) return res.status(500).json({ ok: false, message: "DISCORD_BOT_TOKEN non configurato sul sito." });
-    if (!await requireManageGuild(req, res, guildId)) return;
+    if (!await canManageGuild(req.discordSession, guildId)) return res.status(403).json({ ok: false, message: "Non puoi gestire questo server." });
     try {
       const [channels, roles] = await Promise.all([
         discordBot("/guilds/" + encodeURIComponent(guildId) + "/channels", botToken),
@@ -379,16 +366,18 @@ function createBotConfigPanel({ config }) {
   });
 
   router.get("/guilds/:guildId/config", requireSession, async function (req, res) {
+    noStore(res);
     const guildId = String(req.params.guildId || "");
-    if (!await requireManageGuild(req, res, guildId)) return;
+    if (!await canManageGuild(req.discordSession, guildId)) return res.status(403).json({ ok: false, message: "Non puoi gestire questo server." });
     return res.json({ ok: true, guildId, config: getGuildConfig(config.botConfigPath, guildId) });
   });
 
   router.put("/guilds/:guildId/config", requireSession, express.json({ limit: "64kb" }), async function (req, res) {
+    noStore(res);
     const guildId = String(req.params.guildId || "");
-    if (!await requireManageGuild(req, res, guildId)) return;
+    if (!await canManageGuild(req.discordSession, guildId)) return res.status(403).json({ ok: false, message: "Non puoi gestire questo server." });
     const saved = setGuildConfig(config.botConfigPath, guildId, req.body && req.body.config ? req.body.config : {});
-    return res.json({ ok: true, guildId, config: saved });
+    return res.json({ ok: true, guildId, config: saved, saved_at: new Date().toISOString() });
   });
 
   return router;

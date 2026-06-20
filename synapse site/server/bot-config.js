@@ -155,5 +155,6 @@ module.exports = {
   getGuildConfig,
   setGuildConfig,
   sanitizeConfig,
+  loadAllConfig,
   verifyConfigToken,
 };

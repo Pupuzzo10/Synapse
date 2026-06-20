@@ -52,8 +52,15 @@
     return Array.isArray(value) ? value.join(", ") : "";
   }
 
+  function withCacheBuster(url) {
+    var separator = url.indexOf("?") === -1 ? "?" : "&";
+    return url + separator + "_synapse_ts=" + Date.now();
+  }
+
   async function fetchJson(url, options) {
-    var response = await fetch(url, Object.assign({ headers: { Accept: "application/json" } }, options || {}));
+    var method = options && options.method ? String(options.method).toUpperCase() : "GET";
+    var finalUrl = method === "GET" ? withCacheBuster(url) : url;
+    var response = await fetch(finalUrl, Object.assign({ headers: { Accept: "application/json", "Cache-Control": "no-cache" }, cache: "no-store" }, options || {}));
     var payload = await response.json().catch(function () { return null; });
     if (!response.ok || !payload || !payload.ok) {
       throw new Error(payload && payload.message ? payload.message : "Operazione non disponibile.");
@@ -299,8 +306,9 @@
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({ config: cfg }),
         });
-        fillForm(payload.config || cfg);
-        setStatus("security-result-safe", "Configurazione salvata", "Le impostazioni sono state salvate per questo server.");
+        var verifyPayload = await fetchJson("/api/bot-config/guilds/" + encodeURIComponent(state.selectedGuild.id) + "/config").catch(function () { return payload; });
+        fillForm((verifyPayload && verifyPayload.config) || payload.config || cfg);
+        setStatus("security-result-safe", "Configurazione salvata", "Le impostazioni sono state salvate per questo server. Il bot le sincronizzerà entro pochi secondi.");
       } catch (error) {
         setStatus("security-result-error", "Errore salvataggio", error.message || "Non è stato possibile salvare.");
       }
