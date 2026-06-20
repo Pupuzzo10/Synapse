@@ -1502,8 +1502,18 @@ function createApp(overrides = {}) {
     sendPublicPage(req, res, "bot-config.html");
   });
 
+  app.get("/bot-config/", function (req, res) {
+    res.redirect(302, "/bot-config");
+  });
+
   app.get("/bot-config.html", function (req, res) {
     sendPublicPage(req, res, "bot-config.html");
+  });
+
+  // Alcuni browser/app mobile possono aprire vecchi link corrotti come /! dopo OAuth.
+  // Invece di mostrare JSON 404, riportiamo sempre al pannello dedicato.
+  app.get(["/!", "/!/", "/config", "/config/"], function (req, res) {
+    res.redirect(302, "/bot-config");
   });
 
   app.get("/styles.css", function (req, res) {
