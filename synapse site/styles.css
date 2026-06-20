@@ -4776,18 +4776,70 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  min-height: 56px;
   padding: 13px 14px;
   border: 1px solid rgba(255,255,255,.1);
   border-radius: 16px;
   background: rgba(0,0,0,.24);
   font-weight: 800;
   margin-bottom: 10px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.bot-config-switch input {
-  width: 20px;
-  height: 20px;
-  accent-color: #fff;
+.bot-config-switch:hover,
+.bot-config-switch.is-checked,
+.bot-config-role-option:hover,
+.bot-config-role-option.is-checked {
+  border-color: rgba(255,255,255,.34);
+  background: rgba(255,255,255,.105);
+}
+
+.bot-config-switch input,
+.bot-config-role-option input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255,255,255,.28);
+  border-radius: 9px;
+  background: rgba(0,0,0,.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  cursor: pointer;
+  pointer-events: none;
+  position: relative;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.bot-config-switch input::after,
+.bot-config-role-option input::after {
+  content: "×";
+  color: #000;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+  opacity: 0;
+  transform: scale(.55);
+  transition: opacity .14s ease, transform .14s ease;
+}
+
+.bot-config-switch input:checked,
+.bot-config-role-option input:checked {
+  background: #fff;
+  border-color: #fff;
+  transform: scale(1.03);
+}
+
+.bot-config-switch input:checked::after,
+.bot-config-role-option input:checked::after {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .bot-config-pick-list {
@@ -4805,14 +4857,16 @@ main {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 10px;
+  min-height: 50px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255,255,255,.08);
   border-radius: 12px;
   background: rgba(255,255,255,.04);
   color: rgba(255,255,255,.88);
-}
-
-.bot-config-role-option input {
-  accent-color: #fff;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (max-width: 1100px) {
@@ -4839,5 +4893,28 @@ main {
   }
   .bot-config-hero {
     padding-top: 72px;
+  }
+  .bot-config-shell {
+    padding-bottom: 48px;
+  }
+  .bot-config-sidebar,
+  .bot-config-form,
+  .bot-config-card {
+    border-radius: 18px;
+  }
+  .bot-config-switch,
+  .bot-config-role-option {
+    min-height: 58px;
+    padding: 14px;
+  }
+  .bot-config-switch input,
+  .bot-config-role-option input {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+  .bot-config-pick-list {
+    max-height: 340px;
   }
 }

@@ -143,6 +143,17 @@
     select.value = value ? String(value) : "";
   }
 
+  function updateCheckboxVisual(input) {
+    if (!input) return;
+    var box = input.closest(".bot-config-switch, .bot-config-role-option");
+    if (box) box.classList.toggle("is-checked", Boolean(input.checked));
+    input.setAttribute("aria-checked", input.checked ? "true" : "false");
+  }
+
+  function updateAllCheckboxVisuals(root) {
+    Array.prototype.forEach.call((root || document).querySelectorAll(".bot-config-switch input[type=\"checkbox\"], .bot-config-role-option input[type=\"checkbox\"]"), updateCheckboxVisual);
+  }
+
   function fillRolePickList(container, selectedIds) {
     var selected = new Set((selectedIds || []).map(String));
     container.innerHTML = "";
@@ -153,10 +164,20 @@
     state.roles.forEach(function (role) {
       var id = "role-" + container.dataset.name + "-" + role.id;
       var label = document.createElement("label");
+      var input = document.createElement("input");
+      var text = document.createElement("span");
       label.className = "bot-config-role-option";
-      label.innerHTML = '<input type="checkbox" id="' + escapeHtml(id) + '" value="' + escapeHtml(role.id) + '" ' + (selected.has(String(role.id)) ? "checked" : "") + ' />' +
-        '<span>@' + escapeHtml(role.name) + '</span>';
+      label.setAttribute("for", id);
+      input.type = "checkbox";
+      input.id = id;
+      input.value = role.id;
+      input.checked = selected.has(String(role.id));
+      input.addEventListener("change", function () { updateCheckboxVisual(input); });
+      text.textContent = "@" + role.name;
+      label.appendChild(input);
+      label.appendChild(text);
       container.appendChild(label);
+      updateCheckboxVisual(input);
     });
   }
 
@@ -213,6 +234,7 @@
 
     if (!form.elements.command_prefix.value) form.elements.command_prefix.value = "/";
     form.elements.command_prefix.value = normalizeCommandPrefix(form.elements.command_prefix.value);
+    updateAllCheckboxVisuals(form);
     form.hidden = false;
   }
 
@@ -293,6 +315,23 @@
       setStatus("security-result-empty", "Accedi con Discord", "Il pannello è riservato agli amministratori dei server. Effettua l'accesso per continuare.", '<a class="btn btn-primary" href="' + escapeHtml(loginLink.href) + '">Accedi con Discord</a>');
     }
   }
+
+  document.addEventListener("click", function (event) {
+    var clickable = event.target && event.target.closest ? event.target.closest(".bot-config-switch, .bot-config-role-option") : null;
+    if (!clickable || !form || !form.contains(clickable)) return;
+    var input = clickable.querySelector('input[type="checkbox"]');
+    if (!input || input.disabled) return;
+    event.preventDefault();
+    input.checked = !input.checked;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    updateCheckboxVisual(input);
+  }, { passive: false });
+
+  document.addEventListener("change", function (event) {
+    if (event.target && event.target.matches && event.target.matches(".bot-config-switch input[type=\"checkbox\"], .bot-config-role-option input[type=\"checkbox\"]")) {
+      updateCheckboxVisual(event.target);
+    }
+  });
 
   if (form) {
     form.addEventListener("submit", async function (event) {
