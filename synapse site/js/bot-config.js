@@ -174,6 +174,13 @@
     }
   }
 
+  function normalizeCommandPrefix(value) {
+    var text = String(value == null ? "/" : value).trim();
+    if (!text) return "/";
+    if (text.length > 8) text = text.slice(0, 8);
+    return text;
+  }
+
   function fillForm(config) {
     if (!form) return;
     state.config = config || {};
@@ -198,6 +205,7 @@
     ].forEach(function (name) { setField(name, config[name]); });
 
     if (!form.elements.command_prefix.value) form.elements.command_prefix.value = "/";
+    form.elements.command_prefix.value = normalizeCommandPrefix(form.elements.command_prefix.value);
     form.hidden = false;
   }
 
@@ -206,7 +214,7 @@
     ["channel_id", "role_id", "report_channel_id", "command_prefix"].forEach(function (name) {
       out[name] = form.elements[name] ? String(form.elements[name].value || "").trim() : "";
     });
-    out.command_prefix = out.command_prefix === "." ? "." : "/";
+    out.command_prefix = normalizeCommandPrefix(out.command_prefix);
     out.admin_role_ids = selectedRoles("admin_role_ids");
     out.bypass_role_ids = selectedRoles("bypass_role_ids");
     out.bypass_user_ids = textToIds(form.elements.bypass_user_ids && form.elements.bypass_user_ids.value);

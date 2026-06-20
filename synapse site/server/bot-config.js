@@ -82,6 +82,18 @@ function intRange(value, fallback, min, max) {
   return Math.max(min, Math.min(max, parsed));
 }
 
+function sanitizeCommandPrefix(value, fallback = "/") {
+  const text = String(value == null ? fallback : value).trim();
+  if (!text) return fallback;
+  // Slash resta supportato per indicare l'uso dei comandi slash.
+  if (text === "/") return "/";
+  // Prefissi testuali: liberi, ma senza spazi o menzioni per evitare abusi/confusione.
+  if (/\s/.test(text)) return fallback;
+  if (/[<>@`]/.test(text)) return fallback;
+  if (text.length > 8) return text.slice(0, 8);
+  return text;
+}
+
 function sanitizeConfig(input) {
   const cfg = { ...DEFAULT_CONFIG };
   const payload = input && typeof input === "object" ? input : {};
@@ -89,7 +101,7 @@ function sanitizeConfig(input) {
   cfg.role_id = parseSnowflake(payload.role_id);
   cfg.report_channel_id = parseSnowflake(payload.report_channel_id);
   cfg.admin_role_ids = parseSnowflakeList(payload.admin_role_ids);
-  cfg.command_prefix = String(payload.command_prefix || "/").trim() === "." ? "." : "/";
+  cfg.command_prefix = sanitizeCommandPrefix(payload.command_prefix, cfg.command_prefix);
   cfg.anti_link_enabled = bool(payload.anti_link_enabled, true);
   cfg.anti_spam_enabled = bool(payload.anti_spam_enabled, true);
   cfg.anti_nuke_enabled = bool(payload.anti_nuke_enabled, true);
@@ -144,5 +156,4 @@ module.exports = {
   setGuildConfig,
   sanitizeConfig,
   verifyConfigToken,
-  loadAllConfig,
 };

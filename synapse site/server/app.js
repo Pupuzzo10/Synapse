@@ -1511,9 +1511,13 @@ function createApp(overrides = {}) {
   });
 
   // Alcuni browser/app mobile possono aprire vecchi link corrotti come /! dopo OAuth.
-  // Invece di mostrare JSON 404, riportiamo sempre al pannello dedicato.
-  app.get(["/!", "/!/", "/config", "/config/"], function (req, res) {
-    res.redirect(302, "/bot-config");
+  // Express 5/path-to-regexp non accetta app.get("/!"): usiamo middleware raw.
+  app.use(function legacyBotConfigRedirect(req, res, next) {
+    const pathname = String(req.path || "");
+    if (pathname === "/!" || pathname === "/!/" || pathname === "/config" || pathname === "/config/") {
+      return res.redirect(302, "/bot-config");
+    }
+    return next();
   });
 
   app.get("/styles.css", function (req, res) {
